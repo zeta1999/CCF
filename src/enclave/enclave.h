@@ -17,6 +17,10 @@
 #include "rpcclient.h"
 #include "rpcsessions.h"
 
+#ifdef CCF_HOST_USE_SNMALLOC
+#include "shared_allocator.h"
+#endif
+
 namespace enclave
 {
   class Enclave
@@ -41,6 +45,10 @@ namespace enclave
       node(writer_factory, network, rpcsessions, notifier),
       notifier(writer_factory)
     {
+#ifdef CCF_HOST_USE_SNMALLOC
+      set_ccf_shared_pagemap(config->pagemap);
+#endif
+
       rpc_map = std::make_shared<RpcMap>();
       rpc_map->emplace(
         std::string(ccf::Actors::MEMBERS),

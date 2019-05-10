@@ -42,7 +42,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_start, tls::ConnID);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   tls::tls_connect, tls::ConnID, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  tls::tls_inbound, tls::ConnID, serializer::ByteRange);
+  tls::tls_inbound, tls::ConnID, serializer::DynamicByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   tls::tls_outbound, tls::ConnID, serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_closed, tls::ConnID);

@@ -14,4 +14,11 @@ enclave {
 
         public bool enclave_run();
     };
+
+    untrusted {
+        void * host_reserve(
+            size_t size,
+            size_t align
+        );
+    };
 };

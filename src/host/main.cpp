@@ -21,6 +21,10 @@
 
 using namespace std;
 
+#ifdef CCF_HOST_USE_SNMALLOC
+extern "C" void* snmalloc_pagemap_global_get(void) __attribute__((weak));
+#endif
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -255,6 +259,10 @@ int main(int argc, char** argv)
   config.signature_intervals = {sig_max_tx, sig_max_ms};
 #ifdef DEBUG_CONFIG
   config.debug_config = {memory_reserve_startup};
+#endif
+
+#ifdef CCF_HOST_USE_SNMALLOC
+  config.pagemap = snmalloc_pagemap_global_get();
 #endif
 
   enclave.create_node(config, node_cert, quote, start == "recover");

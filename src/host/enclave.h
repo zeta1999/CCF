@@ -10,6 +10,7 @@
 #include <dlfcn.h>
 #include <openenclave/bits/report.h>
 #include <openenclave/bits/result.h>
+
 #ifdef VIRTUAL_ENCLAVE
 #  include "../enclave/ccf_v.h"
 #else

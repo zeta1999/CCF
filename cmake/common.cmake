@@ -3,6 +3,7 @@
 cmake_minimum_required(VERSION 3.11)
 
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
+set(SNMALLOC_INSTALL_DIR /opt/snmalloc)
 
 set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -93,6 +94,11 @@ if (USE_NLJSON_KV_SERIALISER)
   add_definitions(-DUSE_NLJSON_KV_SERIALISER)
 endif()
 
+option(CCF_HOST_USE_SNMALLOC "Use snmalloc as the default allocator for non-encrypted memory allocations" OFF)
+if (CCF_HOST_USE_SNMALLOC)
+  add_definitions(-DCCF_HOST_USE_SNMALLOC)
+endif()
+
 enable_language(ASM)
 
 include_directories(
@@ -103,6 +109,7 @@ include_directories(
   SYSTEM
   ${CCF_DIR}/3rdparty
   ${MSGPACK_INCLUDE_DIR}
+  ${SNMALLOC_INSTALL_DIR}/include
 )
 
 
@@ -126,13 +133,10 @@ set(OE_LIBCXX_INCLUDE_DIR "${OE_INCLUDE_DIR}/openenclave/3rdparty/libcxx")
 set(OESIGN "${OE_BIN_DIR}/oesign")
 set(OEGEN "${OE_BIN_DIR}/oeedger8r")
 
-add_custom_command(
+execute_process(
     COMMAND ${OEGEN} ${CCF_DIR}/src/edl/ccf.edl --trusted --trusted-dir ${CMAKE_CURRENT_BINARY_DIR} --untrusted --untrusted-dir ${CMAKE_CURRENT_BINARY_DIR}
     COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
     COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
-    DEPENDS ${CCF_DIR}/src/edl/ccf.edl
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
-    COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
 # If OE was built with LINK_SGX=1, then we also need to link SGX
@@ -231,6 +235,7 @@ set(ENCLAVE_LIBS
 
 set(ENCLAVE_FILES
   ${CCF_DIR}/src/enclave/main.cpp
+  ${CCF_DIR}/src/enclave/shared_allocator.cpp
 )
 
 function(enable_quote_code name)
@@ -339,6 +344,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   target_compile_options(${name} PRIVATE
     -nostdinc++
     -U__linux__
+    -mcx16
   )
   target_include_directories(${name} SYSTEM PRIVATE
     ${OE_INCLUDE_DIR}
@@ -380,14 +386,14 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   add_library(${virt_name} SHARED
     ${ENCLAVE_FILES}
     ${PARSED_ARGS_SRCS}
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
+    ${CCF_DIR}/src/enclave/ccf_v_ocall.cpp
   )
   add_san(${virt_name})
   target_compile_definitions(${virt_name} PRIVATE
     INSIDE_ENCLAVE
     VIRTUAL_ENCLAVE
   )
-  target_compile_options(${virt_name} PRIVATE -stdlib=libc++)
+  target_compile_options(${virt_name} PRIVATE -stdlib=libc++ -mcx16)
   target_include_directories(${virt_name} SYSTEM PRIVATE
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${CCFCRYPTO_INC}
@@ -459,6 +465,7 @@ target_link_libraries(genesisgenerator PRIVATE
 # Host Executable
 add_executable(cchost
   ${CCF_DIR}/src/host/main.cpp
+  ${CCF_DIR}/src/host/ocalls_snmalloc.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
 use_client_mbedtls(cchost)
 target_include_directories(cchost PRIVATE

@@ -43,7 +43,7 @@ namespace asynchost
           tls::tls_inbound,
           parent.to_enclave,
           (size_t)id,
-          serializer::ByteRange{data, len});
+          serializer::DynamicByteRange{data, len});
       }
 
       void on_disconnect()

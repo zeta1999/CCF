@@ -27,6 +27,19 @@ namespace serializer
     const size_t size;
   };
 
+  struct ByteRangeShared
+  {
+    const uint8_t* data;
+    const size_t size;
+  };
+
+  using DynamicByteRange =
+#ifndef CCF_HOST_USE_SNMALLOC
+    ByteRange;
+#else
+    ByteRangeShared;
+#endif
+
   namespace details
   {
     /// Iterate through tuple, calling functor on each element
@@ -201,6 +214,27 @@ namespace serializer
     }
   };
 
+  struct MemoryRegionSectionShared : public AbstractSerializedSection
+  {
+    const ByteRangeShared d;
+
+    MemoryRegionSectionShared(const uint8_t* data_, size_t size_) :
+      d{data_, size_}
+    {}
+
+    virtual const uint8_t* data() const override
+    {
+      // this is extremely unsafe. we rely on the fact that the buffer is
+      // being copied from this object, and not being delegated
+      return (const uint8_t*)&d;
+    }
+
+    virtual size_t size() const override
+    {
+      return sizeof(d);
+    }
+  };
+
   class EmptySerializer
   {
   public:
@@ -238,6 +272,13 @@ namespace serializer
     static auto serialize_value(const ByteRange& br)
     {
       auto bfs = std::make_shared<MemoryRegionSection>(br.data, br.size);
+      return std::make_tuple(bfs);
+    }
+
+    /// Overload for ByteRangeShared (length-prefix + raw_data)
+    static auto serialize_value(const ByteRangeShared& br)
+    {
+      auto bfs = std::make_shared<MemoryRegionSectionShared>(br.data, br.size);
       return std::make_tuple(bfs);
     }
 
@@ -283,6 +324,16 @@ namespace serializer
       data += size;
       size -= size;
       return br;
+    }
+
+    /// Overload for ByteRangeShared (refers to data in-place)
+    static ByteRangeShared deserialize_value(
+      const uint8_t*& data, size_t& size, const Tag<ByteRangeShared>&)
+    {
+      const ByteRangeShared* br = (const ByteRangeShared*)data;
+      data += size;
+      size -= size;
+      return *br;
     }
 
     /// Overload for std::vectors of bytes (copied)

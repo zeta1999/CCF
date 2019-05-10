@@ -298,8 +298,10 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] {}".format(self.hostname, cmd))
         self.stdout = open(os.path.join(self.root, "out"), "wb")
         self.stderr = open(os.path.join(self.root, "err"), "wb")
+        custom_env = os.environ.copy()
+        custom_env["LD_PRELOAD"] = "/opt/snmalloc/lib/libsnmallocshim-1mib.so"
         self.proc = subprocess.Popen(
-            self.cmd, cwd=self.root, stdout=self.stdout, stderr=self.stderr
+            self.cmd, cwd=self.root, stdout=self.stdout, stderr=self.stderr, env=custom_env
         )
 
     def stop(self):
@@ -368,6 +370,7 @@ class CCFRemote(object):
         notify_server,
         ledger_file=None,
         sealed_secrets=None,
+        memory_allocator=None
     ):
         """
         Run a ccf binary on a remote host.
@@ -389,6 +392,7 @@ class CCFRemote(object):
             if ledger_file
             else "{}.ledger".format(node_id)
         )
+        self.memory_allocator = memory_allocator
 
         cmd = [
             self.BIN,

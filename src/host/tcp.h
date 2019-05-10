@@ -450,14 +450,14 @@ namespace asynchost
 
     void on_alloc(uv_buf_t* buf)
     {
-      buf->base = new char[read_size];
+      buf->base = (char*)malloc(read_size);
       buf->len = read_size;
     }
 
     void on_free(const uv_buf_t* buf)
     {
       if (buf->base != nullptr)
-        delete[] buf->base;
+        free(buf->base);
     }
 
     static void on_read(uv_stream_t* handle, ssize_t sz, const uv_buf_t* buf)
@@ -487,8 +487,10 @@ namespace asynchost
       uint8_t* p = (uint8_t*)buf->base;
       behaviour->on_read((size_t)sz, p);
 
+#ifndef CCF_HOST_USE_SNMALLOC
       if (p != nullptr)
         on_free(buf);
+#endif
     }
 
     static void on_write(uv_write_t* req, int rc)

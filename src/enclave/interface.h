@@ -34,6 +34,11 @@ struct EnclaveConfig
   };
   DebugConfig debug_config = {};
 #endif
+
+#ifdef CCF_HOST_USE_SNMALLOC
+  void* pagemap = nullptr;
+#endif
+
 };
 
 /// General administrative messages

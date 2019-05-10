@@ -9,8 +9,97 @@
 #include "../tls/msg_types.h"
 #include "endpoint.h"
 
+extern "C" void enclave_shared_free(void*);
+
 namespace enclave
 {
+#ifdef CCF_HOST_USE_SNMALLOC
+  struct TcpPacket
+  {
+    size_t size = 0;
+    void* data = nullptr;
+  };
+
+  inline static void tcp_packet_deleter(void* data, size_t size)
+  {
+    enclave_shared_free(data);
+  }
+
+  // TODO(#feature): we might want to add callback data as an argument
+  using tcp_packet_deleter_t = void (*)(void* data, size_t size);
+
+  class PacketReader
+  {
+  private:
+    size_t total_size = 0;
+    size_t packet_offset = 0;
+    tcp_packet_deleter_t packet_deleter;
+    std::deque<TcpPacket> packets;
+
+  public:
+    PacketReader(tcp_packet_deleter_t packet_deleter_ = nullptr) :
+      packet_deleter(packet_deleter_)
+    {}
+    PacketReader(const PacketReader&) = delete;
+    PacketReader(const PacketReader&&) = delete;
+    PacketReader& operator=(const PacketReader&) = delete;
+
+    size_t size()
+    {
+      return total_size;
+    }
+
+    size_t read(void* buf, size_t len)
+    {
+      if (len > total_size)
+        len = total_size;
+
+      size_t buf_offset = 0;
+      while (len)
+      {
+        TcpPacket& packet = packets.front();
+        size_t copy_len = std::min(len, packet.size - packet_offset);
+        ::memcpy(
+          (uint8_t*)buf + buf_offset,
+          (uint8_t*)packet.data + packet_offset,
+          copy_len);
+        packet_offset += copy_len;
+        buf_offset += copy_len;
+        len -= copy_len;
+        if (packet_offset == packet.size)
+        {
+          packet_offset = 0;
+          if (packet_deleter)
+            packet_deleter(packet.data, packet.size);
+          packets.pop_front();
+        }
+      }
+      total_size -= buf_offset;
+      return buf_offset;
+    }
+
+    void append(const uint8_t* data, size_t size)
+    {
+      packets.push_back({size, const_cast<void*>(reinterpret_cast<const void*>(data))});
+      total_size += size;
+    }
+
+    ~PacketReader()
+    {
+      // TODO: make this thread safe
+      if (packet_deleter)
+      {
+        for (auto& packet : packets)
+        {
+          packet_deleter(packet.data, packet.size);
+        }
+      }
+
+      packets.clear();
+    }
+  };
+#endif // CCF_HOST_USE_SNMALLOC
+
   class TLSEndpoint : public Endpoint
   {
   protected:
@@ -28,11 +117,24 @@ namespace enclave
     };
 
     std::vector<uint8_t> pending_write;
+#ifndef CCF_HOST_USE_SNMALLOC
     std::vector<uint8_t> pending_read;
+#else
+    PacketReader packet_reader{&tcp_packet_deleter};
+#endif
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
     Status status;
+
+    void append_to_pending_read(const uint8_t* data, size_t size)
+    {
+#ifndef CCF_HOST_USE_SNMALLOC
+      pending_read.insert(pending_read.end(), data, data + size);
+#else
+      packet_reader.append(data, size);
+#endif
+    }
 
   public:
     TLSEndpoint(
@@ -153,7 +255,7 @@ namespace enclave
 
     void recv(const uint8_t* data, size_t size)
     {
-      pending_read.insert(pending_read.end(), data, data + size);
+      append_to_pending_read(data, size);
       do_handshake();
 
       auto avail = ctx->available_bytes();
@@ -163,7 +265,7 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      pending_read.insert(pending_read.end(), data, data + size);
+      append_to_pending_read(data, size);
       do_handshake();
     }
 
@@ -439,6 +541,7 @@ namespace enclave
 
     int handle_recv(uint8_t* buf, size_t len)
     {
+#ifndef CCF_HOST_USE_SNMALLOC
       if (pending_read.size() > 0)
       {
         // Use the pending data vector. This is populated when the host
@@ -457,6 +560,12 @@ namespace enclave
 
         return (int)rd;
       }
+#else
+      if (packet_reader.size() > 0)
+      {
+        return packet_reader.read(buf, len);
+      }
+#endif
 
       return MBEDTLS_ERR_SSL_WANT_READ;
     }
