@@ -367,7 +367,7 @@ class CCFRemote(object):
         memory_reserve_startup,
         notify_server,
         ledger_file=None,
-        sealed_secrets=None
+        sealed_secrets=None,
     ):
         """
         Run a ccf binary on a remote host.
