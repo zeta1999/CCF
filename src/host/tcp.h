@@ -143,6 +143,9 @@ namespace asynchost
 
     bool write(size_t len, const uint8_t* data)
     {
+      if (!len)
+        return 0;
+
       auto req = new uv_write_t;
       char* copy = new char[len];
       if (data)

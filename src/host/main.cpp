@@ -22,7 +22,7 @@
 using namespace std;
 
 #ifdef CCF_HOST_USE_SNMALLOC
-extern "C" void* snmalloc_pagemap_global_get(void) __attribute__((weak));
+extern "C" void* snmalloc_pagemap_global_get(void const **);
 #endif
 
 int main(int argc, char** argv)
@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 #endif
 
 #ifdef CCF_HOST_USE_SNMALLOC
-  config.pagemap = snmalloc_pagemap_global_get();
+  config.pagemap = snmalloc_pagemap_global_get(nullptr);
 #endif
 
   enclave.create_node(config, node_cert, quote, start == "recover");

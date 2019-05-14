@@ -66,10 +66,8 @@ namespace snmalloc
         align = 1;
       }
 
-      size_t log2align = bits::next_pow2_bits(align);
-
       void* p;
-      oe_result_t ocall_res = host_reserve(&p, *size, log2align);
+      oe_result_t ocall_res = host_reserve(&p, *size, align);
 
       if (p == MAP_FAILED)
         error("Out of memory");

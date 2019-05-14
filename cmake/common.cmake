@@ -392,6 +392,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   target_compile_definitions(${virt_name} PRIVATE
     INSIDE_ENCLAVE
     VIRTUAL_ENCLAVE
+    -DIS_ADDRESS_SPACE_CONSTRAINED
   )
   target_compile_options(${virt_name} PRIVATE -stdlib=libc++ -mcx16)
   target_include_directories(${virt_name} SYSTEM PRIVATE
@@ -436,13 +437,14 @@ function(add_unit_test name)
     ${CCFCRYPTO_INC})
   target_compile_options(${name} PRIVATE
     -fdiagnostics-color=always
+    -mcx16
     ${COVERAGE_FLAGS})
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
       target_link_libraries(${name} PRIVATE gcov)
     else()
       target_link_libraries(${name} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
     endif()
-  target_link_libraries(${name} PRIVATE ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE -pthread ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})
@@ -464,6 +466,8 @@ target_link_libraries(genesisgenerator PRIVATE
 
 # Host Executable
 add_executable(cchost
+  ${SNMALLOC_INSTALL_DIR}/include/override/malloc.cc
+  ${SNMALLOC_INSTALL_DIR}/include/override/new.cc
   ${CCF_DIR}/src/host/main.cpp
   ${CCF_DIR}/src/host/ocalls_snmalloc.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
@@ -471,6 +475,12 @@ use_client_mbedtls(cchost)
 target_include_directories(cchost PRIVATE
   ${OE_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
+)
+target_compile_options(cchost PRIVATE
+  -mcx16
+  -DIS_ADDRESS_SPACE_CONSTRAINED
+  -DSNMALLOC_EXPOSE_PAGEMAP
+  -DSNMALLOC_EXPOSE_RESERVE
 )
 add_san(cchost)
 
@@ -488,10 +498,18 @@ enable_quote_code(cchost)
 
 # Virtual Host Executable
 add_executable(cchost.virtual
+  ${SNMALLOC_INSTALL_DIR}/include/override/malloc.cc
+  ${SNMALLOC_INSTALL_DIR}/include/override/new.cc
   ${CCF_DIR}/src/host/main.cpp)
 use_client_mbedtls(cchost.virtual)
-target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
+target_compile_definitions(cchost.virtual PRIVATE
+  -DVIRTUAL_ENCLAVE
+  -DIS_ADDRESS_SPACE_CONSTRAINED
+  -DSNMALLOC_EXPOSE_PAGEMAP
+  -DSNMALLOC_EXPOSE_RESERVE)
+target_compile_options(cchost.virtual PRIVATE
+  -stdlib=libc++
+  -mcx16)
 target_include_directories(cchost.virtual PRIVATE
   ${OE_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -506,6 +524,8 @@ target_link_libraries(cchost.virtual PRIVATE
   -lc++
   -lc++abi
   -stdlib=libc++
+  -pthread
+  -Wl,--export-dynamic
   ccfcrypto.host
   merkle_tree.host
 )
