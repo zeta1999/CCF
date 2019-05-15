@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #include <stddef.h>
 
 extern "C" void* snmalloc_reserve_shared(size_t* size, size_t align);
