@@ -38,7 +38,6 @@ struct EnclaveConfig
 #ifdef CCF_HOST_USE_SNMALLOC
   void* pagemap = nullptr;
 #endif
-
 };
 
 /// General administrative messages

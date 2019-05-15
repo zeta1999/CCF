@@ -18,7 +18,7 @@
 #include "rpcsessions.h"
 
 #ifdef CCF_HOST_USE_SNMALLOC
-#include "shared_allocator.h"
+#  include "shared_allocator.h"
 #endif
 
 namespace enclave

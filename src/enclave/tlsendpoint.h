@@ -80,7 +80,8 @@ namespace enclave
 
     void append(const uint8_t* data, size_t size)
     {
-      packets.push_back({size, const_cast<void*>(reinterpret_cast<const void*>(data))});
+      packets.push_back(
+        {size, const_cast<void*>(reinterpret_cast<const void*>(data))});
       total_size += size;
     }
 
