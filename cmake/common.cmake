@@ -97,6 +97,13 @@ endif()
 option(CCF_HOST_USE_SNMALLOC "Use snmalloc as the default allocator for non-encrypted memory allocations" OFF)
 if (CCF_HOST_USE_SNMALLOC)
   add_definitions(-DCCF_HOST_USE_SNMALLOC)
+  set(SNMALLOC_SRC_FILES_HOST
+    ${SNMALLOC_INSTALL_DIR}/include/override/malloc.cc
+    ${SNMALLOC_INSTALL_DIR}/include/override/new.cc)
+  set(SNMALLOC_SRC_FILES_ENCLAVE ${CCF_DIR}/src/enclave/shared_allocator.cpp)
+else()
+  set(SNMALLOC_SRC_FILES_HOST )
+  set(SNMALLOC_SRC_FILES_ENCLAVE )
 endif()
 
 enable_language(ASM)
@@ -235,7 +242,7 @@ set(ENCLAVE_LIBS
 
 set(ENCLAVE_FILES
   ${CCF_DIR}/src/enclave/main.cpp
-  ${CCF_DIR}/src/enclave/shared_allocator.cpp
+  ${SNMALLOC_SRC_FILES_ENCLAVE}
 )
 
 function(enable_quote_code name)
@@ -444,7 +451,7 @@ function(add_unit_test name)
     else()
       target_link_libraries(${name} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
     endif()
-  target_link_libraries(${name} PRIVATE -pthread ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})
@@ -466,8 +473,7 @@ target_link_libraries(genesisgenerator PRIVATE
 
 # Host Executable
 add_executable(cchost
-  ${SNMALLOC_INSTALL_DIR}/include/override/malloc.cc
-  ${SNMALLOC_INSTALL_DIR}/include/override/new.cc
+  ${SNMALLOC_SRC_FILES_HOST}
   ${CCF_DIR}/src/host/main.cpp
   ${CCF_DIR}/src/host/ocalls_snmalloc.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
@@ -498,8 +504,7 @@ enable_quote_code(cchost)
 
 # Virtual Host Executable
 add_executable(cchost.virtual
-  ${SNMALLOC_INSTALL_DIR}/include/override/malloc.cc
-  ${SNMALLOC_INSTALL_DIR}/include/override/new.cc
+  ${SNMALLOC_SRC_FILES_HOST}
   ${CCF_DIR}/src/host/main.cpp)
 use_client_mbedtls(cchost.virtual)
 target_compile_definitions(cchost.virtual PRIVATE
@@ -524,7 +529,6 @@ target_link_libraries(cchost.virtual PRIVATE
   -lc++
   -lc++abi
   -stdlib=libc++
-  -pthread
   -Wl,--export-dynamic
   ccfcrypto.host
   merkle_tree.host
