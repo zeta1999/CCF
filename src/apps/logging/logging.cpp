@@ -8,6 +8,7 @@
 
 #include <curl/curl.h>
 #include <fmt/format_header_only.h>
+#include <openenclave/bits/module.h>
 #include <valijson/adapters/nlohmann_json_adapter.hpp>
 #include <valijson/schema.hpp>
 #include <valijson/schema_parser.hpp>
@@ -109,6 +110,13 @@ namespace ccfapp
     return size * nmemb;
   }
 
+  static int curl_debugfunc(CURL*, curl_infotype, char* c, size_t n, void*)
+  {
+    std::string s(c, n);
+    LOG_INFO_FMT("CURL DEBUG: {}", s);
+    return 0;
+  }
+
   // SNIPPET: inherit_frontend
   class Logger : public ccf::UserRpcFrontend
   {
@@ -156,11 +164,16 @@ namespace ccfapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      oe_load_module_host_socket_interface();
+      oe_load_module_host_resolver();
+
       auto curl_fetch = [this](Store::Tx& tx, const nlohmann::json& params) {
         char error_buffer[CURL_ERROR_SIZE] = {0};
 
+        const auto url = params["url"].get<std::string>();
+
         CURL* curl = curl_easy_init();
-        curl_easy_setopt(curl, CURLOPT_URL, "http://www.example.com/");
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         /* example.com is redirected, so we tell libcurl to follow redirection
          */
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -170,6 +183,8 @@ namespace ccfapp
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debugfunc);
 
         /* Perform the request, res will get the return code */
         CURLcode res = curl_easy_perform(curl);
