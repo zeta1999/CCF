@@ -15,7 +15,7 @@ set(TEST_HOST_LOGGING_LEVEL "info")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
 option(BUILD_TESTS "Build tests" ON)
-option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+option(BUILD_SMALLBANK "Build SmallBank sample app and clients" OFF)
 
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)

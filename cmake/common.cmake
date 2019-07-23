@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+cmake_policy(SET CMP0079 NEW)
+
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 
 set(default_build_type "RelWithDebInfo")
@@ -704,6 +706,7 @@ function(add_perf_test)
 endfunction()
 
 # libcurl
+find_package(openenclave 0.6 REQUIRED CONFIG)
 set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(HTTP_ONLY ON CACHE BOOL "" FORCE)
@@ -713,24 +716,27 @@ set(ENABLE_UNIX_SOCKETS OFF CACHE BOOL "" FORCE)
 if (CMAKE_BUILD_TYPE STREQUAL Debug)
   set(ENABLE_DEBUG ON CACHE BOOL "" FORCE)
 endif()
-if (BUILD_ENCLAVE)
-  set(CMAKE_USE_OPENSSL OFF CACHE BOOL "" FORCE)
-  set(CMAKE_USE_MBEDTLS ON CACHE BOOL "" FORCE)
-  # Satisfy curl's FindMbedTLS module, mbedtls supplied by oeenclave.
-  set(MBEDTLS_LIBRARY "" CACHE STRING "" FORCE)
-  set(MBEDX509_LIBRARY "" CACHE STRING "" FORCE)
-  set(MBEDCRYPTO_LIBRARY "" CACHE STRING "" FORCE)
-  set(MBEDTLS_INCLUDE_DIRS "" CACHE STRING "" FORCE)
-  # Avoid that curl links to dl.
-  set(HAVE_LIBDL OFF CACHE BOOL "" FORCE)
-  add_compile_definitions(CURL_DISABLE_NETRC USE_BLOCKING_SOCKETS)
-endif()
+set(CMAKE_USE_OPENSSL OFF CACHE BOOL "" FORCE)
+set(CMAKE_USE_MBEDTLS ON CACHE BOOL "" FORCE)
+# Satisfy curl's FindMbedTLS module, mbedtls supplied by oeenclave.
+set(MBEDTLS_LIBRARY "" CACHE STRING "" FORCE)
+set(MBEDX509_LIBRARY "" CACHE STRING "" FORCE)
+set(MBEDCRYPTO_LIBRARY "" CACHE STRING "" FORCE)
+set(MBEDTLS_INCLUDE_DIRS "" CACHE STRING "" FORCE)
+# Avoid that curl links to dl.
+set(HAVE_LIBDL OFF CACHE BOOL "" FORCE)
+add_compile_definitions(CURL_DISABLE_NETRC USE_BLOCKING_SOCKETS)
 add_subdirectory(curl EXCLUDE_FROM_ALL)
-if (BUILD_ENCLAVE)
-  target_link_libraries(libcurl
-    openenclave::oeenclave
-    openenclave::oelibcxx
-    openenclave::oehostsock
-    openenclave::oehostresolver
-    )
-endif()
+target_link_libraries(libcurl
+  openenclave::oeenclave
+  openenclave::oelibcxx
+  openenclave::oehostsock
+  openenclave::oehostresolver
+)
+
+set(oe_stubs
+  ${CMAKE_CURRENT_SOURCE_DIR}/patches/stubs_undefined.c
+)
+
+target_sources(libcurl PRIVATE ${oe_stubs})
+
