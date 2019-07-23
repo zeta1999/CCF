@@ -3,6 +3,8 @@
 
 namespace ccf
 {
+  using ReleaseID = size_t;
+
   struct ReleasePolicy
   {
     size_t min_builds;
@@ -46,12 +48,23 @@ namespace ccf
 
     struct Out
     {
+      ReleaseID release_id;
       std::vector<uint8_t> oe_sig_val;
     };
   };
   DECLARE_REQUIRED_JSON_FIELDS(
     SignReleaseBranch::In, repository, branch, pr, binary, oe_sig_info);
-  DECLARE_REQUIRED_JSON_FIELDS(SignReleaseBranch::Out, oe_sig_val);
+  DECLARE_REQUIRED_JSON_FIELDS(SignReleaseBranch::Out, release_id, oe_sig_val);
+
+  struct GetBranch
+  {
+    struct In
+    {
+      std::string repository;
+      std::string branch;
+    };
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(GetBranch::In, repository, branch);
 
   struct BranchData
   {
@@ -70,6 +83,8 @@ namespace ccf
     std::vector<uint8_t> oe_sig_info;
     std::vector<uint8_t> oe_sig_val;
   };
+  DECLARE_REQUIRED_JSON_FIELDS(
+    ReleaseData, repository, branch, pr, binary, oe_sig_info, oe_sig_val);
 
   class TessApp : public ccf::UserRpcFrontend
   {
@@ -92,7 +107,6 @@ namespace ccf
     using BranchesMap = ccfapp::Store::Map<std::string, BranchData>;
     BranchesMap& branches;
 
-    using ReleaseID = size_t;
     // Map with single value at key 0
     using NextReleaseMap = ccfapp::Store::Map<size_t, ReleaseID>;
     NextReleaseMap& next_release;
@@ -190,7 +204,7 @@ namespace ccf
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             fmt::format(
-              "Already have a branch named {} in repository {}",
+              "Already have a branch named {} for repository {}",
               in.branch,
               in.repository));
         }
@@ -210,6 +224,30 @@ namespace ccf
         return jsonrpc::success(out);
       };
       install(CreateReleaseBranch::METHOD, create_release_branch, Write);
+
+      auto get_branch = [this](RequestArgs& args) {
+        const auto in = args.params.get<GetBranch::In>();
+        auto release_name = fmt::format("{}:{}", in.repository, in.branch);
+
+        auto branches_view = args.tx.get_view(branches);
+        auto branch_it = branches_view->get(release_name);
+        if (!branch_it.has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "There is no branch {} for repository {}",
+              in.repository,
+              in.branch));
+        }
+
+        auto out = nlohmann::json::object();
+        out["info"] = branch_it->info;
+        // out["pubk"] = branch_it->pubk;
+        out["policy"] = branch_it->policy;
+        return jsonrpc::success(out);
+      };
+      install("GET_BRANCH", get_branch, Read);
 
       auto sign_release_branch = [this](RequestArgs& args) {
         auto in = args.params.get<SignReleaseBranch::In>();
@@ -240,9 +278,9 @@ namespace ccf
               "Policy is not met:\n{}", fmt::join(failure_reasons, "\n")));
         }
 
-        const auto release_id = get_next_release(args.tx);
+        out.release_id = get_next_release(args.tx);
 
-        out.oe_sig_val = std::vector<uint8_t>(); // Sign
+        out.oe_sig_val = std::vector<uint8_t>(); // TODO: Sign
 
         // GH.accept_pr(..., oe_sig_val);
 
@@ -254,11 +292,27 @@ namespace ccf
         rd.binary = in.binary;
         rd.oe_sig_info = in.oe_sig_info;
         rd.oe_sig_val = out.oe_sig_val;
-        releases_view->put(release_id, rd);
+        releases_view->put(out.release_id, rd);
 
         return jsonrpc::success(out);
       };
       install(SignReleaseBranch::METHOD, sign_release_branch, Write);
+
+      auto get_release = [this](RequestArgs& args) {
+        auto release_id = args.params["release_id"];
+
+        auto releases_view = args.tx.get_view(releases);
+        auto release_it = releases_view->get(release_id);
+        if (!release_it.has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format("There is no release with id {}", release_id));
+        }
+
+        return jsonrpc::success(release_it.value());
+      };
+      install("GET_RELEASE", get_release, Read);
     }
   };
 

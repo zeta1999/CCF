@@ -4,15 +4,15 @@
 
 set -ex
 
-./client userrpc --req '
+./client --pretty-print userrpc --req '
 {
   "jsonrpc": "2.0",
   "id": 0,
   "method": "ROLES_GET"
 }'
 
-# Create release branch
-./client userrpc --req '
+# Create branch
+./client --pretty-print userrpc --req '
 {
   "jsonrpc": "2.0",
   "id": 0,
@@ -22,12 +22,28 @@ set -ex
     "branch": "v0.42",
     "policy": {
       "min_builds": 2
+    },
+    "info": {
+      "arbitrary": ["user", "data"],
+      "goes": "here"
     }
   }
 }'
 
-# Sign release branch
-./client userrpc --req '
+# Get branch
+./client --pretty-print userrpc --req '
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "GET_BRANCH",
+  "params": {
+    "repository": "ONNX",
+    "branch": "v0.42"
+  }
+}'
+
+# Sign release 
+./client --pretty-print userrpc --req '
 {
   "jsonrpc": "2.0",
   "id": 0,
@@ -38,5 +54,16 @@ set -ex
     "pr": {},
     "binary": [],
     "oe_sig_info": []
+  }
+}'
+
+# Get release
+./client --pretty-print userrpc --req '
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "GET_RELEASE",
+  "params": {
+    "release_id": 0
   }
 }'
