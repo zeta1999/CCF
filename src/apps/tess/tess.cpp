@@ -3,6 +3,43 @@
 
 namespace tess
 {
+  struct CreateReleaseBranch
+  {
+    static constexpr auto METHOD = "CREATE_RELEASE_BRANCH";
+
+    struct In
+    {
+      std::string repository;
+      std::string branch;
+    };
+
+    struct Out
+    {};
+  };
+
+  void to_json(nlohmann::json& j, const CreateReleaseBranch::In& in)
+  {
+    j["repository"] = in.repository;
+    j["branch"] = in.branch;
+  }
+
+  void from_json(const nlohmann::json& j, CreateReleaseBranch::In& in)
+  {
+    const auto repo_it = j.find("repository");
+    if (repo_it == j.end())
+    {
+      throw std::logic_error(fmt::format("Missing param '{}'", "repository"));
+    }
+    in.repository = repo_it->get<std::string>();
+
+    const auto branch_it = j.find("branch");
+    if (branch_it == j.end())
+    {
+      throw std::logic_error(fmt::format("Missing param '{}'", "branch"));
+    }
+    in.branch = repo_it->get<std::string>();
+  }
+
   class TessApp : public ccf::UserRpcFrontend
   {
   public:
@@ -26,25 +63,6 @@ namespace tess
 
     using BranchesMap = ccfapp::Store::Map<std::string, BranchData>;
     BranchesMap& branches;
-
-    struct CreateReleaseBranch
-    {
-      static constexpr auto METHOD = "CREATE_RELEASE_BRANCH";
-
-      struct In
-      {
-        std::string repository;
-        std::string branch;
-      };
-
-      struct Out
-      {};
-    };
-
-    inline void to_json(nlohmann::json& j, const CreateReleaseBranch::In& in) {}
-
-    inline void from_json(const nlohmann::json& j, CreateReleaseBranch::In& in)
-    {}
 
     Roles get_roles(ccf::Store::Tx& tx, ccf::CallerId user)
     {
@@ -105,8 +123,7 @@ namespace tess
       install("ROLES_ADD", roles_add, Write);
 
       auto create_release_branch = [this](RequestArgs& args) {
-        CreateReleaseBranch::In in =
-          {}; // args.params.get<CreateReleaseBranch::In>();
+        CreateReleaseBranch::In in = args.params.get<CreateReleaseBranch::In>();
 
         auto release_name = fmt::format("{}:{}", in.repository, in.branch);
 
