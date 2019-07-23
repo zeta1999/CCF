@@ -33,6 +33,31 @@ namespace tess
     using BuildsMap = ccfapp::Store::Map<BuildID, Build>;
     BuildsMap& builds;
 
+    struct BranchData
+    {};
+
+    using BranchesMap = ccfapp::Store::Map<std::string, BranchData>;
+    BranchesMap& branches;
+
+    struct CreateReleaseBranch
+    {
+      static constexpr auto METHOD = "CREATE_RELEASE_BRANCH";
+
+      struct In
+      {
+        std::string repository;
+        std::string branch;
+      };
+
+      struct Out
+      {};
+    };
+
+    inline void to_json(nlohmann::json& j, const CreateReleaseBranch::In& in) {}
+
+    inline void from_json(const nlohmann::json& j, CreateReleaseBranch::In& in)
+    {}
+
     Roles get_roles(ccf::Store::Tx& tx, ccf::CallerId user)
     {
       auto rv = tx.get_view(user_roles);
@@ -78,7 +103,8 @@ namespace tess
       network(nwt),
       user_roles(tables.create<RolesMap>("user-roles")),
       repo_ids(tables.create<ReposMap>("repo-ids")),
-      builds(tables.create<BuildsMap>("builds"))
+      builds(tables.create<BuildsMap>("builds")),
+      branches(tables.create<BranchesMap>("branches"))
     {
       auto roles_get = [this](RequestArgs& args) {
         return jsonrpc::success(get_roles(args.tx, args.caller_id));
@@ -211,6 +237,35 @@ namespace tess
       };
       install("BUILDS_GET", builds_get, Read);
 
+      auto create_release_branch = [this](RequestArgs& args) {
+        CreateReleaseBranch::In in =
+          {}; // args.params.get<CreateReleaseBranch::In>();
+
+        auto release_name = fmt::format("{}:{}", in.repository, in.branch);
+
+        auto releases_view = args.tx.get_view(branches);
+        if (releases_view->get(release_name).has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "Already have a release branch named {} in repository {}",
+              in.branch,
+              in.repository));
+        }
+
+        // GH.create_protected_branch(branch, commit);
+
+        auto kp = tls::make_key_pair();
+        const auto privk = kp->private_key();
+        const auto pubk = kp->public_key();
+
+        releases_view->put(release_name, {});
+
+        return jsonrpc::success(pubk);
+      };
+      install(CreateReleaseBranch::METHOD, create_release_branch, Write);
+
       // auto builds_list = [this](RequestArgs& args) {};
       // install("BUILDS_LIST", builds_list, Read);
     }
@@ -259,6 +314,37 @@ namespace fmt
     }
   };
 }
+
+namespace msgpack
+{
+  // msgpack conversion for uint256_t
+  MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
+  {
+    namespace adaptor
+    {
+      template <>
+      struct convert<tess::TessApp::BranchData>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, tess::TessApp::BranchData& v) const
+        {
+          return o;
+        }
+      };
+
+      template <>
+      struct pack<tess::TessApp::BranchData>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, tess::TessApp::BranchData const& v) const
+        {
+          return o;
+        }
+      };
+    } // namespace adaptor
+  }
+} // namespace msgpack
 
 MSGPACK_ADD_ENUM(tess::TessApp::Role);
 
