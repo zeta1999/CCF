@@ -5,8 +5,6 @@
 #include "node/rpc/nodeinterface.h"
 #include "node/rpc/userfrontend.h"
 
-#include <curl/curl.h>
-
 using namespace std;
 using namespace nlohmann;
 using namespace ccf;
@@ -29,13 +27,6 @@ namespace ccfapp
     static constexpr auto SMALL_BANKING_WRITE_CHECK = "SmallBank_write_check";
   };
 
-  static size_t curl_writefunc(
-    void* ptr, size_t size, size_t nmemb, std::string* s)
-  {
-    s->append((char*)ptr, size * nmemb);
-    return size * nmemb;
-  }
-
   class SmallBank : public ccf::UserRpcFrontend
   {
   private:
@@ -50,34 +41,6 @@ namespace ccfapp
       savingsTable(tables.create<uint64_t, int64_t>("b")),
       checkingTable(tables.create<uint64_t, int64_t>("c"))
     {
-      auto curl_fetch = [this](Store::Tx& tx, const nlohmann::json& params) {
-        CURL* curl = curl_easy_init();
-        curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
-        /* example.com is redirected, so we tell libcurl to follow redirection
-         */
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-        /* Perform the request, res will get the return code */
-        CURLcode res = curl_easy_perform(curl);
-        /* Check for errors */
-        if (res != CURLE_OK)
-        {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format("curl_easy_perform failed with {}", res));
-        }
-
-        curl_easy_cleanup(curl);
-
-        return jsonrpc::success(response);
-      };
-      install("CURL_FETCH", curl_fetch, Read);
-
       auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
         // Create an account with a balance from thin air.
         std::string name = params["name"];

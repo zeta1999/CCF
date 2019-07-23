@@ -11,6 +11,9 @@ project(ccf C CXX)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
+cmake_policy(SET CMP0079 NEW)
+add_subdirectory(3rdparty)
+
 set(TEST_HOST_LOGGING_LEVEL "info")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
@@ -35,6 +38,8 @@ target_link_libraries(logging_client PRIVATE
 
 # SNIPPET: Logging application
 add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
+
+target_link_libraries(loggingenc PRIVATE libcurl)
 
 if(BUILD_TESTS)
   # Tests

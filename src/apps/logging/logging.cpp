@@ -6,6 +6,7 @@
 #include "node/rpc/nodeinterface.h"
 #include "node/rpc/userfrontend.h"
 
+#include <curl/curl.h>
 #include <fmt/format_header_only.h>
 #include <valijson/adapters/nlohmann_json_adapter.hpp>
 #include <valijson/schema.hpp>
@@ -101,6 +102,13 @@ namespace ccfapp
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
+  static size_t curl_writefunc(
+    void* ptr, size_t size, size_t nmemb, std::string* s)
+  {
+    s->append((char*)ptr, size * nmemb);
+    return size * nmemb;
+  }
+
   // SNIPPET: inherit_frontend
   class Logger : public ccf::UserRpcFrontend
   {
@@ -148,6 +156,47 @@ namespace ccfapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
+      auto curl_fetch = [this](Store::Tx& tx, const nlohmann::json& params) {
+        char error_buffer[CURL_ERROR_SIZE] = {0};
+
+        CURL* curl = curl_easy_init();
+        curl_easy_setopt(curl, CURLOPT_URL, "http://www.example.com/");
+        /* example.com is redirected, so we tell libcurl to follow redirection
+         */
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+
+        std::string response;
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+        /* Perform the request, res will get the return code */
+        CURLcode res = curl_easy_perform(curl);
+        /* Check for errors */
+        if (res != CURLE_OK)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "curl_easy_perform failed with {}. aka '{}'. Maybe more "
+              "information in here: '{}'",
+              res,
+              curl_easy_strerror(res),
+              error_buffer));
+        }
+
+        curl_easy_cleanup(curl);
+
+        return jsonrpc::success(response);
+      };
+      install("CURL_FETCH", curl_fetch, Read);
+
+      auto hello_world = [this](auto& a) {
+        return jsonrpc::success("HELLO WORLD");
+      };
+      install("hello", hello_world, Read);
+
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {

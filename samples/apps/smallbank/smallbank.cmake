@@ -12,7 +12,6 @@ add_enclave_lib(smallbankenc
   ${CCF_DIR}/src/apps/sample_key.pem
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
-target_link_libraries(smallbankenc PRIVATE libcurl)
 
 if(BUILD_TESTS)
   ## Small Bank end to end and performance test
