@@ -198,6 +198,7 @@ namespace ccf
         // GH.create_protected_branch(branch, commit);
 
         auto kp = tls::make_key_pair();
+        out.pubk = kp->public_key();
 
         BranchData bd;
         bd.info = args.params["info"];
@@ -231,7 +232,7 @@ namespace ccf
         const auto& branch_data = *branch_it;
 
         std::vector<std::string> failure_reasons;
-        if (!is_policy_met(in.pr, branch_data.policy, failure_reasons))
+        if (!is_policy_met(branch_data.policy, in.pr, failure_reasons))
         {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
