@@ -3,6 +3,26 @@
 
 namespace tess
 {
+  struct ReleasePolicy
+  {
+    size_t min_builds;
+  };
+
+  void to_json(nlohmann::json& j, const ReleasePolicy& rp)
+  {
+    j["min_builds"] = rp.min_builds;
+  }
+
+  void from_json(const nlohmann::json& j, ReleasePolicy& in)
+  {
+    const auto min_builds_it = j.find("min_builds");
+    if (min_builds_it == j.end())
+    {
+      throw std::logic_error(fmt::format("Missing param '{}'", "min_builds"));
+    }
+    in.min_builds = min_builds_it->get<size_t>();
+  }
+
   struct CreateReleaseBranch
   {
     static constexpr auto METHOD = "CREATE_RELEASE_BRANCH";
@@ -11,6 +31,7 @@ namespace tess
     {
       std::string repository;
       std::string branch;
+      ReleasePolicy policy;
     };
 
     struct Out
@@ -21,24 +42,46 @@ namespace tess
   {
     j["repository"] = in.repository;
     j["branch"] = in.branch;
+    j["policy"] = in.policy;
   }
 
   void from_json(const nlohmann::json& j, CreateReleaseBranch::In& in)
   {
-    const auto repo_it = j.find("repository");
-    if (repo_it == j.end())
     {
-      throw std::logic_error(fmt::format("Missing param '{}'", "repository"));
+      const auto repo_it = j.find("repository");
+      if (repo_it == j.end())
+      {
+        throw std::logic_error(fmt::format("Missing param '{}'", "repository"));
+      }
+      in.repository = repo_it->get<std::string>();
     }
-    in.repository = repo_it->get<std::string>();
 
-    const auto branch_it = j.find("branch");
-    if (branch_it == j.end())
     {
-      throw std::logic_error(fmt::format("Missing param '{}'", "branch"));
+      const auto branch_it = j.find("branch");
+      if (branch_it == j.end())
+      {
+        throw std::logic_error(fmt::format("Missing param '{}'", "branch"));
+      }
+      in.branch = branch_it->get<std::string>();
     }
-    in.branch = repo_it->get<std::string>();
+
+    {
+      const auto policy_it = j.find("policy");
+      if (policy_it == j.end())
+      {
+        throw std::logic_error(fmt::format("Missing param '{}'", "policy"));
+      }
+      in.policy = *policy_it;
+    }
   }
+
+  struct BranchData
+  {
+    nlohmann::json info;
+    std::vector<uint8_t> pubk;
+    std::vector<uint8_t> privk;
+    ReleasePolicy policy;
+  };
 
   class TessApp : public ccf::UserRpcFrontend
   {
@@ -57,9 +100,6 @@ namespace tess
     using Roles = std::set<Role>;
     using RolesMap = ccfapp::Store::Map<ccf::CallerId, Roles>;
     RolesMap& user_roles;
-
-    struct BranchData
-    {};
 
     using BranchesMap = ccfapp::Store::Map<std::string, BranchData>;
     BranchesMap& branches;
@@ -123,7 +163,7 @@ namespace tess
       install("ROLES_ADD", roles_add, Write);
 
       auto create_release_branch = [this](RequestArgs& args) {
-        CreateReleaseBranch::In in = args.params.get<CreateReleaseBranch::In>();
+        auto in = args.params.get<CreateReleaseBranch::In>();
 
         auto release_name = fmt::format("{}:{}", in.repository, in.branch);
 
@@ -144,14 +184,16 @@ namespace tess
         const auto privk = kp->private_key();
         const auto pubk = kp->public_key();
 
-        releases_view->put(release_name, {});
+        BranchData bd;
+        bd.info = args.params["info"];
+        bd.pubk = pubk;
+        bd.privk = privk;
+        bd.policy = in.policy;
+        releases_view->put(release_name, bd);
 
         return jsonrpc::success(pubk);
       };
       install(CreateReleaseBranch::METHOD, create_release_branch, Write);
-
-      // auto builds_list = [this](RequestArgs& args) {};
-      // install("BUILDS_LIST", builds_list, Read);
     }
   };
 
@@ -206,23 +248,65 @@ namespace msgpack
   {
     namespace adaptor
     {
+      // ReleasePolicy
       template <>
-      struct convert<tess::TessApp::BranchData>
+      struct convert<tess::ReleasePolicy>
       {
         msgpack::object const& operator()(
-          msgpack::object const& o, tess::TessApp::BranchData& v) const
+          msgpack::object const& o, tess::ReleasePolicy& rp) const
         {
+          rp = {
+            o.via.array.ptr[0].as<decltype(tess::ReleasePolicy::min_builds)>()};
+
           return o;
         }
       };
 
       template <>
-      struct pack<tess::TessApp::BranchData>
+      struct pack<tess::ReleasePolicy>
       {
         template <typename Stream>
         packer<Stream>& operator()(
-          msgpack::packer<Stream>& o, tess::TessApp::BranchData const& v) const
+          msgpack::packer<Stream>& o, tess::ReleasePolicy const& rp) const
         {
+          o.pack_array(1);
+
+          o.pack(rp.min_builds);
+
+          return o;
+        }
+      };
+
+      // BranchData
+      template <>
+      struct convert<tess::BranchData>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, tess::BranchData& bd) const
+        {
+          bd = {o.via.array.ptr[0].as<decltype(tess::BranchData::info)>(),
+                o.via.array.ptr[1].as<decltype(tess::BranchData::pubk)>(),
+                o.via.array.ptr[2].as<decltype(tess::BranchData::privk)>(),
+                o.via.array.ptr[3].as<decltype(tess::BranchData::policy)>()};
+
+          return o;
+        }
+      };
+
+      template <>
+      struct pack<tess::BranchData>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, tess::BranchData const& bd) const
+        {
+          o.pack_array(4);
+
+          o.pack(bd.info);
+          o.pack(bd.pubk);
+          o.pack(bd.privk);
+          o.pack(bd.policy);
+
           return o;
         }
       };
