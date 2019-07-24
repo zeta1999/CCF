@@ -193,6 +193,24 @@ namespace ccf
 
         CURL* curl = curl_easy_init();
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+        const auto headers_it = params.find("headers");
+        std::vector<std::string> headers;
+        curl_slist* curl_headers = nullptr;
+        if (headers_it != params.end())
+        {
+          headers = headers_it->get<std::vector<std::string>>();
+          for (const auto& header : headers)
+          {
+            curl_headers = curl_slist_append(curl_headers, header.c_str());
+          }
+        }
+
+        if (curl_headers)
+        {
+          curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_headers);
+        }
+
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
 
@@ -221,6 +239,7 @@ namespace ccf
         }
 
         curl_easy_cleanup(curl);
+        curl_slist_free_all(curl_headers);
 
         return jsonrpc::success(response);
       };
