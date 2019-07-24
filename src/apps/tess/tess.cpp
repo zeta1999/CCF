@@ -23,6 +23,7 @@ namespace ccf
       std::string owner;
       std::string repository;
       std::string branch;
+      std::string commit; // SHA of commit to create branch from
       ReleasePolicy policy;
     };
 
@@ -32,7 +33,7 @@ namespace ccf
     };
   };
   DECLARE_REQUIRED_JSON_FIELDS(
-    CreateReleaseBranch::In, owner, repository, branch, policy);
+    CreateReleaseBranch::In, owner, repository, branch, commit, policy);
   DECLARE_REQUIRED_JSON_FIELDS(CreateReleaseBranch::Out, pubk_pem);
 
   // RPC: SignReleaseBranch
@@ -218,7 +219,7 @@ namespace ccf
       const auto url = fmt::format("{}/{}", api_root, path);
       curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
-      LOG_INFO_FMT("Sending GET request to {}", url);
+      LOG_DEBUG_FMT("Sending GET request to {}", url);
 
       std::vector<std::string> headers;
       curl_slist* curl_headers = nullptr;
@@ -282,13 +283,13 @@ namespace ccf
       const auto url = fmt::format("{}/{}", api_root, path);
       curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
-      LOG_INFO_FMT("Sending POST request to {}", url);
+      LOG_DEBUG_FMT("Sending POST request to {}", url);
 
       curl_easy_setopt(curl, CURLOPT_POST, 1L);
       const auto post_data = data.dump();
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
 
-      LOG_INFO_FMT("POST contents: {}", post_data);
+      LOG_DEBUG_FMT("POST contents: {}", post_data);
 
       std::vector<std::string> headers;
       curl_slist* curl_headers = nullptr;
@@ -353,6 +354,12 @@ namespace ccf
     {
       return fmt::format(
         "repos/{}/{}/issues/{}/comments", owner, repo, pr_number);
+    }
+
+    std::string get_path_create_branch(
+      const std::string& owner, const std::string& repo)
+    {
+      return fmt::format("repos/{}/{}/git/refs", owner, repo);
     }
 
     TessApp(ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier) :
@@ -489,7 +496,25 @@ namespace ccf
               in.repository));
         }
 
-        // GH.create_protected_branch(branch, commit);
+        // Create a new branch
+        const auto create_branch_path =
+          get_path_create_branch(in.owner, in.repository);
+        auto create_payload = nlohmann::json::object();
+        create_payload["ref"] = fmt::format("refs/heads/{}", in.branch);
+        create_payload["sha"] = in.commit;
+
+        const auto post_pair =
+          curl_github_post(args.tx, create_branch_path, create_payload);
+        if (!post_pair.first)
+        {
+          return post_pair;
+        }
+
+        const auto post_response =
+          nlohmann::json::parse(post_pair.second.get<std::string>());
+        LOG_DEBUG_FMT("Create branch response: {}", post_response.dump(2));
+
+        // TODO: Set branch protection rules
 
         auto kp = tls::make_key_pair();
 
@@ -591,7 +616,6 @@ It produces a binary with hash {} and a signature 0x{:02x}.
           fmt::join(out.oe_sig_val, ""));
         contents["body"] = comment;
 
-        // const auto add_comment_path = pr["comments_url"].get<std::string>();
         const auto add_comment_path =
           get_path_add_pr_comment(in.owner, in.repository, in.pr_number);
 
@@ -603,7 +627,7 @@ It produces a binary with hash {} and a signature 0x{:02x}.
 
         const auto post_response =
           nlohmann::json::parse(post_pair.second.get<std::string>());
-        LOG_INFO_FMT("PR comment response: {}", post_response.dump(2));
+        LOG_DEBUG_FMT("PR comment response: {}", post_response.dump(2));
 
         auto releases_view = args.tx.get_view(releases);
         ReleaseData rd;
