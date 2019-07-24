@@ -1,4 +1,7 @@
-clone and init submodules
+Init submodules:
+```
+git submodule update --recursive --init
+```
 
 Build:
 ```
