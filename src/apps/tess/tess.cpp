@@ -88,6 +88,12 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(
     ReleaseData, repository, branch, pr, binary, oe_sig_info, oe_sig_val);
 
+  struct GithubUser
+  {
+    std::string user_token; // Base-64 OAuth token
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(GithubUser, user_token);
+
   static size_t curl_writefunc(
     void* ptr, size_t size, size_t nmemb, std::string* s)
   {
@@ -129,6 +135,9 @@ namespace ccf
     using ReleasesMap = ccfapp::Store::Map<ReleaseID, ReleaseData>;
     ReleasesMap& releases;
 
+    using GithubUserMap = ccfapp::Store::Map<size_t, GithubUser>;
+    GithubUserMap& github_user;
+
     Roles get_roles(ccf::Store::Tx& tx, ccf::CallerId user)
     {
       auto rv = tx.get_view(user_roles);
@@ -162,13 +171,79 @@ namespace ccf
       return true;
     }
 
+    GithubUser get_github_user(ccf::Store::Tx& tx)
+    {
+      auto view = tx.get_view(github_user);
+      const auto it = view->get(0);
+      if (!it.has_value())
+      {
+        throw std::logic_error(
+          "Tried to use github user identity before it was set");
+      }
+
+      return *it;
+    }
+
+    auto curl_github_get(ccf::Store::Tx& tx, const std::string& path)
+    {
+      auto user = get_github_user(tx);
+
+      CURL* curl = curl_easy_init();
+
+      const auto url = fmt::format("https://api.github.com/{}", path);
+      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+      std::vector<std::string> headers;
+      curl_slist* curl_headers = nullptr;
+      const auto auth_header =
+        fmt::format("Authorization: token {}", user.user_token);
+      curl_headers = curl_slist_append(curl_headers, auth_header.c_str());
+      curl_headers = curl_slist_append(curl_headers, "User-Agent: TESS-CCF");
+      curl_headers =
+        curl_slist_append(curl_headers, "content-type: application/json");
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_headers);
+
+      curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+      // TODO: Add Github-authenticating CA, rather than skipping verification
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+      std::string response;
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      char error_buffer[CURL_ERROR_SIZE] = {0};
+      curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+      curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debugfunc);
+
+      CURLcode res = curl_easy_perform(curl);
+
+      if (res != CURLE_OK)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format(
+            "curl_easy_perform failed with {}: '{}' (Details: {})",
+            res,
+            curl_easy_strerror(res),
+            error_buffer));
+      }
+
+      curl_easy_cleanup(curl);
+      curl_slist_free_all(curl_headers);
+
+      return jsonrpc::success(response);
+    }
+
     TessApp(ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier) :
       UserRpcFrontend(*nwt.tables),
       network(nwt),
       user_roles(tables.create<RolesMap>("user-roles")),
       branches(tables.create<BranchesMap>("branches")),
       next_release(tables.create<NextReleaseMap>("next-release")),
-      releases(tables.create<ReleasesMap>("releases"))
+      releases(tables.create<ReleasesMap>("releases")),
+      github_user(tables.create<GithubUserMap>("github-user"))
     {
       oe_result_t res;
 
@@ -186,64 +261,37 @@ namespace ccf
           fmt::format("oe_load_module_host_resolver failed with {}", res));
       }
 
-      auto curl_fetch = [this](Store::Tx& tx, const nlohmann::json& params) {
-        char error_buffer[CURL_ERROR_SIZE] = {0};
+      auto set_github_user =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          const auto in = params.get<GithubUser>();
 
-        const auto url = params["url"].get<std::string>();
+          auto view = tx.get_view(github_user);
 
-        CURL* curl = curl_easy_init();
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-
-        const auto headers_it = params.find("headers");
-        std::vector<std::string> headers;
-        curl_slist* curl_headers = nullptr;
-        if (headers_it != params.end())
-        {
-          headers = headers_it->get<std::vector<std::string>>();
-          for (const auto& header : headers)
+          if (view->get(0).has_value())
           {
-            curl_headers = curl_slist_append(curl_headers, header.c_str());
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              "Github User identity has already been provisioned");
           }
-        }
 
-        if (curl_headers)
-        {
-          curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_headers);
-        }
+          view->put(0, in);
 
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+          return jsonrpc::success(true);
+        };
+      install("SET_GITHUB_USER", set_github_user, Write);
 
-        // TODO: Add Github-authenticating CA, rather than skipping verification
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debugfunc);
-
-        /* Perform the request, res will get the return code */
-        CURLcode res = curl_easy_perform(curl);
-        /* Check for errors */
-        if (res != CURLE_OK)
+      auto github_get = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto path_it = params.find("path");
+        if (path_it == params.end() || !path_it->is_string())
         {
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format(
-              "curl_easy_perform failed with {}: '{}' (Details: {})",
-              res,
-              curl_easy_strerror(res),
-              error_buffer));
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Missing param: path");
         }
 
-        curl_easy_cleanup(curl);
-        curl_slist_free_all(curl_headers);
-
-        return jsonrpc::success(response);
+        const auto path = path_it->get<std::string>();
+        return curl_github_get(tx, path);
       };
-      install("CURL_FETCH", curl_fetch, Read);
+      install("GITHUB_GET", github_get, Read);
 
       auto roles_get = [this](RequestArgs& args) {
         return jsonrpc::success(get_roles(args.tx, args.caller_id));
@@ -555,6 +603,34 @@ namespace msgpack
           o.pack(rd.binary);
           o.pack(rd.oe_sig_info);
           o.pack(rd.oe_sig_val);
+
+          return o;
+        }
+      };
+
+      // GithubUser
+      template <>
+      struct convert<ccf::GithubUser>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, ccf::GithubUser& gu) const
+        {
+          gu = {o.via.array.ptr[0].as<decltype(ccf::GithubUser::user_token)>()};
+
+          return o;
+        }
+      };
+
+      template <>
+      struct pack<ccf::GithubUser>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, ccf::GithubUser const& gu) const
+        {
+          o.pack_array(1);
+
+          o.pack(gu.user_token);
 
           return o;
         }
