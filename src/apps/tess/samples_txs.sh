@@ -24,3 +24,6 @@ set -ex
 
 # Get details of PR
 #./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "GITHUB_GET", "params": {"path": "repos/ad-l/tess-mockup/pulls/3"}}'
+
+# Record new repository
+./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "RECORD_NEW_REPOSITORY", "params": {"path": "repos/transparent-enclave/uiTest"}}'

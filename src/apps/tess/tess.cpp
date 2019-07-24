@@ -35,6 +35,18 @@ namespace ccf
     CreateReleaseBranch::In, owner, repository, branch, policy);
   DECLARE_REQUIRED_JSON_FIELDS(CreateReleaseBranch::Out, pubk_pem);
 
+
+  // RPC: RecordNewRepository
+  struct RecordNewRepository
+  {
+    static constexpr auto METHOD = "RECORD_NEW_REPOSITORY";
+
+    struct In {
+      std::string path;
+    };
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(RecordNewRepository::In, path);
+
   // RPC: SignReleaseBranch
   struct SignReleaseBranch
   {
@@ -83,6 +95,11 @@ namespace ccf
     std::vector<uint8_t> pubk;
     std::vector<uint8_t> privk;
     ReleasePolicy policy;
+  };
+
+  struct RepositoryData
+  {
+    nlohmann::json info;
   };
 
   struct ReleaseData
@@ -138,13 +155,16 @@ namespace ccf
     };
 
     ccf::NetworkTables& network;
-
+    
     using Roles = std::set<Role>;
     using RolesMap = ccfapp::Store::Map<ccf::CallerId, Roles>;
     RolesMap& user_roles;
 
     using BranchesMap = ccfapp::Store::Map<std::string, BranchData>;
     BranchesMap& branches;
+
+    using RepositoriesMap = ccfapp::Store::Map<std::string, RepositoryData>;
+    RepositoriesMap& repositories;
 
     // Map with single value at key 0
     using NextReleaseMap = ccfapp::Store::Map<size_t, ReleaseID>;
@@ -362,7 +382,8 @@ namespace ccf
       branches(tables.create<BranchesMap>("branches")),
       next_release(tables.create<NextReleaseMap>("next-release")),
       releases(tables.create<ReleasesMap>("releases")),
-      github_user(tables.create<GithubUserMap>("github-user"))
+      github_user(tables.create<GithubUserMap>("github-user")),
+      repositories(tables.create<RepositoriesMap>("repositories"))
     {
       oe_result_t res;
 
@@ -400,6 +421,36 @@ namespace ccf
         return jsonrpc::success(true);
       };
       install("SET_GITHUB_USER", set_github_user, Write);
+
+      auto record_new_repository = 
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto path_it = params.find("path");
+        if (path_it == params.end() || !path_it->is_string())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Missing param: path");
+        }
+        const auto path = path_it->get<std::string>();
+
+        // Get the repo from Github and store if successful
+        const auto repo_info_res =  curl_github_get(tx, path);
+
+        if (repo_info_res.first == true) {
+          auto view = tx.get_view(repositories);
+
+          RepositoryData rd;
+          rd.info = repo_info_res.second;
+
+          // Store repository info
+          view->put(path, rd);
+          return jsonrpc::success(true);
+        } else {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Error getting repository info from Github.");
+        }
+      };
+      install("RECORD_NEW_REPOSITORY", record_new_repository, Write);
 
       auto github_get = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto path_it = params.find("path");
@@ -787,6 +838,33 @@ namespace msgpack
           o.pack(rd.binary);
           o.pack(rd.oe_sig_info);
           o.pack(rd.oe_sig_val);
+
+          return o;
+        }
+      };
+
+      template <>
+      struct convert<ccf::RepositoryData>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, ccf::RepositoryData& rd) const
+        {
+          rd = {o.via.array.ptr[0].as<decltype(ccf::RepositoryData::info)>()};
+
+          return o;
+        }
+      };
+
+      template <>
+      struct pack<ccf::RepositoryData>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, ccf::RepositoryData const& rd) const
+        {
+          o.pack_array(1);
+
+          o.pack(rd.info);
 
           return o;
         }
