@@ -90,7 +90,7 @@ namespace ccf
 
   struct GithubUser
   {
-    std::string user_token; // Base-64 OAuth token
+    std::string user_token;
   };
   DECLARE_REQUIRED_JSON_FIELDS(GithubUser, user_token);
 
