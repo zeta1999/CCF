@@ -20,6 +20,7 @@ namespace ccf
 
     struct In
     {
+      std::string owner;
       std::string repository;
       std::string branch;
       ReleasePolicy policy;
@@ -27,12 +28,12 @@ namespace ccf
 
     struct Out
     {
-      std::vector<uint8_t> pubk;
+      std::string pubk_pem;
     };
   };
   DECLARE_REQUIRED_JSON_FIELDS(
-    CreateReleaseBranch::In, repository, branch, policy);
-  DECLARE_REQUIRED_JSON_FIELDS(CreateReleaseBranch::Out, pubk);
+    CreateReleaseBranch::In, owner, repository, branch, policy);
+  DECLARE_REQUIRED_JSON_FIELDS(CreateReleaseBranch::Out, pubk_pem);
 
   // RPC: SignReleaseBranch
   struct SignReleaseBranch
@@ -41,9 +42,10 @@ namespace ccf
 
     struct In
     {
+      std::string owner;
       std::string repository;
       std::string branch;
-      nlohmann::json pr;
+      size_t pr_number;
       std::vector<uint8_t> binary;
       std::vector<uint8_t> oe_sig_info;
     };
@@ -55,18 +57,25 @@ namespace ccf
     };
   };
   DECLARE_REQUIRED_JSON_FIELDS(
-    SignReleaseBranch::In, repository, branch, pr, binary, oe_sig_info);
+    SignReleaseBranch::In,
+    owner,
+    repository,
+    branch,
+    pr_number,
+    binary,
+    oe_sig_info);
   DECLARE_REQUIRED_JSON_FIELDS(SignReleaseBranch::Out, release_id, oe_sig_val);
 
   struct GetBranch
   {
     struct In
     {
+      std::string owner;
       std::string repository;
       std::string branch;
     };
   };
-  DECLARE_REQUIRED_JSON_FIELDS(GetBranch::In, repository, branch);
+  DECLARE_REQUIRED_JSON_FIELDS(GetBranch::In, owner, repository, branch);
 
   struct BranchData
   {
@@ -78,6 +87,7 @@ namespace ccf
 
   struct ReleaseData
   {
+    std::string owner;
     std::string repository;
     std::string branch;
     nlohmann::json pr;
@@ -86,7 +96,14 @@ namespace ccf
     std::vector<uint8_t> oe_sig_val;
   };
   DECLARE_REQUIRED_JSON_FIELDS(
-    ReleaseData, repository, branch, pr, binary, oe_sig_info, oe_sig_val);
+    ReleaseData,
+    owner,
+    repository,
+    branch,
+    pr,
+    binary,
+    oe_sig_info,
+    oe_sig_val);
 
   struct GithubUser
   {
@@ -171,6 +188,12 @@ namespace ccf
       return true;
     }
 
+    template <typename T>
+    std::string get_release_name(const T& t)
+    {
+      return fmt::format("{}:{}:{}", t.owner, t.repository, t.branch);
+    }
+
     GithubUser get_github_user(ccf::Store::Tx& tx)
     {
       auto view = tx.get_view(github_user);
@@ -237,6 +260,15 @@ namespace ccf
       curl_easy_cleanup(curl);
       curl_slist_free_all(curl_headers);
 
+      long http_code = 0;
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+      if (http_code >= 400)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format("{} returned code {}: {}", url, http_code, response));
+      }
+
       return jsonrpc::success(response);
     }
 
@@ -298,7 +330,29 @@ namespace ccf
       curl_easy_cleanup(curl);
       curl_slist_free_all(curl_headers);
 
+      long http_code = 0;
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+      if (http_code >= 400)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format("{} returned code {}: {}", url, http_code, response));
+      }
+
       return jsonrpc::success(response);
+    }
+
+    std::string get_path_get_pr(
+      const std::string& owner, const std::string& repo, size_t pr_number)
+    {
+      return fmt::format("repos/{}/{}/pulls/{}", owner, repo, pr_number);
+    }
+
+    std::string get_path_add_pr_comment(
+      const std::string& owner, const std::string& repo, size_t pr_number)
+    {
+      return fmt::format(
+        "repos/{}/{}/issues/{}/comments", owner, repo, pr_number);
     }
 
     TessApp(ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier) :
@@ -326,23 +380,25 @@ namespace ccf
           fmt::format("oe_load_module_host_resolver failed with {}", res));
       }
 
-      auto set_github_user =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          const auto in = params.get<GithubUser>();
+      auto set_github_user = [this](
+                               Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GithubUser>();
 
-          auto view = tx.get_view(github_user);
+        if (in.user_token.empty())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "user_token is empty");
+        }
 
-          if (view->get(0).has_value())
-          {
-            return jsonrpc::error(
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-              "Github User identity has already been provisioned");
-          }
+        // TODO: Make a test request with this identity to confirm it is valid,
+        // has not been revoked
 
-          view->put(0, in);
+        auto view = tx.get_view(github_user);
 
-          return jsonrpc::success(true);
-        };
+        view->put(0, in);
+
+        return jsonrpc::success(true);
+      };
       install("SET_GITHUB_USER", set_github_user, Write);
 
       auto github_get = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -420,7 +476,7 @@ namespace ccf
         auto in = args.params.get<CreateReleaseBranch::In>();
         CreateReleaseBranch::Out out;
 
-        auto release_name = fmt::format("{}:{}", in.repository, in.branch);
+        auto release_name = get_release_name(in);
 
         auto branches_view = args.tx.get_view(branches);
         if (branches_view->get(release_name).has_value())
@@ -436,22 +492,23 @@ namespace ccf
         // GH.create_protected_branch(branch, commit);
 
         auto kp = tls::make_key_pair();
-        out.pubk = kp->public_key();
 
         BranchData bd;
         bd.info = args.params["info"];
-        bd.pubk = out.pubk;
+        bd.pubk = kp->public_key();
         bd.privk = kp->private_key();
         bd.policy = in.policy;
         branches_view->put(release_name, bd);
 
+        out.pubk_pem =
+          std::string(reinterpret_cast<char*>(bd.pubk.data()), bd.pubk.size());
         return jsonrpc::success(out);
       };
       install(CreateReleaseBranch::METHOD, create_release_branch, Write);
 
       auto get_branch = [this](RequestArgs& args) {
         const auto in = args.params.get<GetBranch::In>();
-        auto release_name = fmt::format("{}:{}", in.repository, in.branch);
+        auto release_name = get_release_name(in);
 
         auto branches_view = args.tx.get_view(branches);
         auto branch_it = branches_view->get(release_name);
@@ -477,7 +534,7 @@ namespace ccf
         auto in = args.params.get<SignReleaseBranch::In>();
         SignReleaseBranch::Out out;
 
-        auto release_name = fmt::format("{}:{}", in.repository, in.branch);
+        auto release_name = get_release_name(in);
 
         auto branches_view = args.tx.get_view(branches);
         const auto branch_it = branches_view->get(release_name);
@@ -493,8 +550,22 @@ namespace ccf
 
         const auto& branch_data = *branch_it;
 
+        // Get PR details from Github
+        const auto get_path =
+          get_path_get_pr(in.owner, in.repository, in.pr_number);
+        auto get_pair = curl_github_get(args.tx, get_path);
+        if (!get_pair.first)
+        {
+          return get_pair;
+        }
+
+        const auto pr =
+          nlohmann::json::parse(get_pair.second.get<std::string>());
+
+        LOG_DEBUG_FMT("Got PR: {}", pr.dump(2));
+
         std::vector<std::string> failure_reasons;
-        if (!is_policy_met(branch_data.policy, in.pr, failure_reasons))
+        if (!is_policy_met(branch_data.policy, pr, failure_reasons))
         {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
@@ -504,15 +575,41 @@ namespace ccf
 
         out.release_id = get_next_release(args.tx);
 
-        out.oe_sig_val = std::vector<uint8_t>(); // TODO: Sign
+        out.oe_sig_val = {'T', 'O', 'D', 'O'}; // TODO: Sign
 
-        // GH.accept_pr(..., oe_sig_val);
+        // Add a comment indicating commitment to this release
+        auto contents = nlohmann::json::object();
+        const auto bin_hash = crypto::Sha256Hash{in.binary};
+        const auto comment = fmt::format(
+          R"xxx(WIP:
+TESS accepts this PR as a release, with ID {}.
+
+It produces a binary with hash {} and a signature 0x{:02x}.
+)xxx",
+          out.release_id,
+          bin_hash,
+          fmt::join(out.oe_sig_val, ""));
+        contents["body"] = comment;
+
+        // const auto add_comment_path = pr["comments_url"].get<std::string>();
+        const auto add_comment_path =
+          get_path_add_pr_comment(in.owner, in.repository, in.pr_number);
+
+        auto post_pair = curl_github_post(args.tx, add_comment_path, contents);
+        if (!post_pair.first)
+        {
+          return post_pair;
+        }
+
+        const auto post_response =
+          nlohmann::json::parse(post_pair.second.get<std::string>());
+        LOG_INFO_FMT("PR comment response: {}", post_response.dump(2));
 
         auto releases_view = args.tx.get_view(releases);
         ReleaseData rd;
         rd.repository = in.repository;
         rd.branch = in.branch;
-        rd.pr = in.pr;
+        rd.pr = pr;
         rd.binary = in.binary;
         rd.oe_sig_info = in.oe_sig_info;
         rd.oe_sig_val = out.oe_sig_val;
@@ -662,12 +759,13 @@ namespace msgpack
           msgpack::object const& o, ccf::ReleaseData& rd) const
         {
           rd = {
-            o.via.array.ptr[0].as<decltype(ccf::ReleaseData::repository)>(),
-            o.via.array.ptr[1].as<decltype(ccf::ReleaseData::branch)>(),
-            o.via.array.ptr[2].as<decltype(ccf::ReleaseData::pr)>(),
-            o.via.array.ptr[3].as<decltype(ccf::ReleaseData::binary)>(),
-            o.via.array.ptr[4].as<decltype(ccf::ReleaseData::oe_sig_info)>(),
-            o.via.array.ptr[5].as<decltype(ccf::ReleaseData::oe_sig_val)>()};
+            o.via.array.ptr[0].as<decltype(ccf::ReleaseData::owner)>(),
+            o.via.array.ptr[1].as<decltype(ccf::ReleaseData::repository)>(),
+            o.via.array.ptr[2].as<decltype(ccf::ReleaseData::branch)>(),
+            o.via.array.ptr[3].as<decltype(ccf::ReleaseData::pr)>(),
+            o.via.array.ptr[4].as<decltype(ccf::ReleaseData::binary)>(),
+            o.via.array.ptr[5].as<decltype(ccf::ReleaseData::oe_sig_info)>(),
+            o.via.array.ptr[6].as<decltype(ccf::ReleaseData::oe_sig_val)>()};
 
           return o;
         }
@@ -680,8 +778,9 @@ namespace msgpack
         packer<Stream>& operator()(
           msgpack::packer<Stream>& o, ccf::ReleaseData const& rd) const
         {
-          o.pack_array(6);
+          o.pack_array(7);
 
+          o.pack(rd.owner);
           o.pack(rd.repository);
           o.pack(rd.branch);
           o.pack(rd.pr);
