@@ -600,7 +600,8 @@ namespace ccf
 
         out.release_id = get_next_release(args.tx);
 
-        out.oe_sig_val = {'T', 'O', 'D', 'O'}; // TODO: Sign
+        auto kp = tls::make_key_pair(branch_data.privk);
+        out.oe_sig_val = kp->sign(in.oe_sig_info);
 
         // Add a comment indicating commitment to this release
         auto contents = nlohmann::json::object();
