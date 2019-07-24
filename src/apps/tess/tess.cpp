@@ -126,6 +126,23 @@ namespace ccf
     return 0;
   }
 
+  struct CurlReadData
+  {
+    const char* ptr;
+    size_t size;
+  };
+
+  static size_t curl_readfunc(
+    char* buffer, size_t size, size_t nitems, void* userdata)
+  {
+    auto read_data = (CurlReadData*)userdata;
+    const auto nbytes = std::min(size * nitems, read_data->size);
+    memcpy(buffer, read_data->ptr, nbytes);
+    read_data->ptr += nbytes;
+    read_data->size -= nbytes;
+    return nbytes;
+  }
+
   class TessApp : public ccf::UserRpcFrontend
   {
   public:
@@ -185,8 +202,19 @@ namespace ccf
       const nlohmann::json& pr,
       std::vector<std::string>& failure_reasons)
     {
+      bool success = true;
+      const auto state = pr["state"].get<std::string>();
+
+      if (state != "open")
+      {
+        failure_reasons.push_back(
+          fmt::format("Pull Request is not mergeable: {}", state));
+        success = false;
+      }
+
       // TODO
-      return true;
+
+      return success;
     }
 
     template <typename T>
@@ -343,6 +371,80 @@ namespace ccf
       return jsonrpc::success(response);
     }
 
+    auto curl_github_put(
+      ccf::Store::Tx& tx, const std::string& path, const nlohmann::json& data)
+    {
+      auto user = get_github_user(tx);
+
+      CURL* curl = curl_easy_init();
+
+      const auto url = fmt::format("{}/{}", api_root, path);
+      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+      LOG_DEBUG_FMT("Sending PUT request to {}", url);
+
+      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+      const auto put_data = data.dump();
+      curl_easy_setopt(curl, CURLOPT_READFUNCTION, curl_readfunc);
+
+      CurlReadData crd{put_data.c_str(), put_data.size()};
+      curl_easy_setopt(curl, CURLOPT_READDATA, &crd);
+      curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)crd.size);
+
+      LOG_DEBUG_FMT("PUT contents: {}", put_data);
+
+      std::vector<std::string> headers;
+      curl_slist* curl_headers = nullptr;
+      const auto auth_header =
+        fmt::format("Authorization: token {}", user.user_token);
+      curl_headers = curl_slist_append(curl_headers, auth_header.c_str());
+      curl_headers = curl_slist_append(curl_headers, "User-Agent: TESS-CCF");
+      curl_headers =
+        curl_slist_append(curl_headers, "content-type: application/json");
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_headers);
+
+      curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+      // TODO: Add Github-authenticating CA, rather than skipping verification
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+      std::string response;
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      char error_buffer[CURL_ERROR_SIZE] = {0};
+      curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+      curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debugfunc);
+
+      CURLcode res = curl_easy_perform(curl);
+
+      if (res != CURLE_OK)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format(
+            "curl_easy_perform failed with {}: '{}' (Details: {})",
+            res,
+            curl_easy_strerror(res),
+            error_buffer));
+      }
+
+      curl_easy_cleanup(curl);
+      curl_slist_free_all(curl_headers);
+
+      long http_code = 0;
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+      if (http_code >= 400)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format("{} returned code {}: {}", url, http_code, response));
+      }
+
+      return jsonrpc::success(response);
+    }
+
     std::string get_path_get_pr(
       const std::string& owner, const std::string& repo, size_t pr_number)
     {
@@ -354,6 +456,12 @@ namespace ccf
     {
       return fmt::format(
         "repos/{}/{}/issues/{}/comments", owner, repo, pr_number);
+    }
+
+    std::string get_path_merge_pr(
+      const std::string& owner, const std::string& repo, size_t pr_number)
+    {
+      return fmt::format("repos/{}/{}/pulls/{}/merge", owner, repo, pr_number);
     }
 
     std::string get_path_create_branch(
@@ -525,8 +633,8 @@ namespace ccf
         bd.policy = in.policy;
         branches_view->put(release_name, bd);
 
-        out.pubk_pem =
-          std::string(reinterpret_cast<char*>(bd.pubk.data()), bd.pubk.size());
+        out.pubk_pem = std::string(
+          reinterpret_cast<const char*>(bd.pubk.data()), bd.pubk.size());
         return jsonrpc::success(out);
       };
       install(CreateReleaseBranch::METHOD, create_release_branch, Write);
@@ -562,15 +670,31 @@ namespace ccf
         auto release_name = get_release_name(in);
 
         auto branches_view = args.tx.get_view(branches);
-        const auto branch_it = branches_view->get(release_name);
+        auto branch_it = branches_view->get(release_name);
         if (!branch_it.has_value())
         {
+#if 0
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             fmt::format(
               "There is no branch {} for repository {}",
               in.repository,
               in.branch));
+#else
+          // TODO: Temporary hack.
+          // Since we're not offering full protection/management of the target
+          // branch, we can create an entry for it now.
+          auto kp = tls::make_key_pair();
+
+          BranchData bd;
+          bd.info = nullptr;
+          bd.pubk = kp->public_key();
+          bd.privk = kp->private_key();
+          bd.policy = {2};
+          branches_view->put(release_name, bd);
+
+          branch_it = branches_view->get(release_name);
+#endif
         }
 
         const auto& branch_data = *branch_it;
@@ -604,31 +728,64 @@ namespace ccf
         out.oe_sig_val = kp->sign(in.oe_sig_info);
 
         // Add a comment indicating commitment to this release
-        auto contents = nlohmann::json::object();
-        const auto bin_hash = crypto::Sha256Hash{in.binary};
-        const auto comment = fmt::format(
-          R"xxx(WIP:
-TESS accepts this PR as a release, with ID {}.
-
-It produces a binary with hash {} and a signature 0x{:02x}.
-)xxx",
-          out.release_id,
-          bin_hash,
-          fmt::join(out.oe_sig_val, ""));
-        contents["body"] = comment;
-
-        const auto add_comment_path =
-          get_path_add_pr_comment(in.owner, in.repository, in.pr_number);
-
-        auto post_pair = curl_github_post(args.tx, add_comment_path, contents);
-        if (!post_pair.first)
         {
-          return post_pair;
+          std::string pubk_pem(
+            reinterpret_cast<const char*>(branch_data.pubk.data()),
+            branch_data.pubk.size() - 1);
+          const auto comment = fmt::format(
+            R"xxx(PR ACCEPTED - {}
+
+= TESS IDENTITY =
+{}
+
+= SIGNED =
+{:02x}
+
+= SIGNATURE =
+{:02x}
+)xxx",
+            pr["merge_commit_sha"].get<std::string>(),
+            pubk_pem,
+            fmt::join(in.oe_sig_info, ""),
+            fmt::join(out.oe_sig_val, ""));
+          auto contents = nlohmann::json::object();
+          contents["body"] = comment;
+
+          const auto add_comment_path =
+            get_path_add_pr_comment(in.owner, in.repository, in.pr_number);
+
+          auto comment_pair =
+            curl_github_post(args.tx, add_comment_path, contents);
+          if (!comment_pair.first)
+          {
+            return comment_pair;
+          }
+
+          const auto comment_response =
+            nlohmann::json::parse(comment_pair.second.get<std::string>());
+          LOG_DEBUG_FMT("PR comment response: {}", comment_response.dump(2));
         }
 
-        const auto post_response =
-          nlohmann::json::parse(post_pair.second.get<std::string>());
-        LOG_DEBUG_FMT("PR comment response: {}", post_response.dump(2));
+        // Merge PR
+        {
+          const auto merge_pr_path =
+            get_path_merge_pr(in.owner, in.repository, in.pr_number);
+          auto contents = nlohmann::json::object();
+          contents["commit_title"] = pr["title"];
+          contents["commit_message"] = pr["body"];
+          contents["sha"] = pr["head"]["sha"];
+          contents["merge_method"] = "merge";
+
+          auto merge_pair = curl_github_put(args.tx, merge_pr_path, contents);
+          if (!merge_pair.first)
+          {
+            return merge_pair;
+          }
+
+          const auto merge_response =
+            nlohmann::json::parse(merge_pair.second.get<std::string>());
+          LOG_DEBUG_FMT("Merge response: {}", merge_response.dump(2));
+        }
 
         auto releases_view = args.tx.get_view(releases);
         ReleaseData rd;
