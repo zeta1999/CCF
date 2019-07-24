@@ -1,10 +1,10 @@
-Init and update CCF submodule
+clone and init submodules
 
 Build:
 ```
 mkdir build
 cd build
-cmake .. -GNinja
+cmake .. -GNinja -DTARGET=sgx
 ninja
 ```
 
