@@ -164,8 +164,21 @@ namespace ccfapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      oe_load_module_host_socket_interface();
-      oe_load_module_host_resolver();
+      oe_result_t res;
+
+      res = oe_load_module_host_socket_interface();
+      if (res != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "oe_load_module_host_socket_interface failed with {}", res));
+      }
+
+      res = oe_load_module_host_resolver();
+      if (res != OE_OK)
+      {
+        throw std::logic_error(
+          fmt::format("oe_load_module_host_resolver failed with {}", res));
+      }
 
       auto curl_fetch = [this](Store::Tx& tx, const nlohmann::json& params) {
         char error_buffer[CURL_ERROR_SIZE] = {0};
