@@ -39,6 +39,8 @@ target_link_libraries(logging_client PRIVATE
 # SNIPPET: Logging application
 add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
 
+target_link_libraries(loggingenc PRIVATE libcurl)
+
 add_enclave_lib(
   tess
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tess/oe_sign.conf
@@ -46,8 +48,8 @@ add_enclave_lib(
   SRCS
     src/apps/tess/tess.cpp
 )
+target_link_libraries(tess PRIVATE libcurl)
 
-target_link_libraries(loggingenc PRIVATE libcurl)
 
 if(BUILD_TESTS)
   # Tests

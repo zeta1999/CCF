@@ -187,8 +187,6 @@ namespace ccfapp
 
         CURL* curl = curl_easy_init();
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        /* example.com is redirected, so we tell libcurl to follow redirection
-         */
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
 

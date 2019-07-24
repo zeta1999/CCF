@@ -1,5 +1,7 @@
+#include <curl/curl.h>
 #include <enclave/appinterface.h>
 #include <node/rpc/userfrontend.h>
+#include <openenclave/bits/module.h>
 
 namespace ccf
 {
@@ -86,6 +88,20 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(
     ReleaseData, repository, branch, pr, binary, oe_sig_info, oe_sig_val);
 
+  static size_t curl_writefunc(
+    void* ptr, size_t size, size_t nmemb, std::string* s)
+  {
+    s->append((char*)ptr, size * nmemb);
+    return size * nmemb;
+  }
+
+  static int curl_debugfunc(CURL*, curl_infotype, char* c, size_t n, void*)
+  {
+    std::string s(c, n);
+    LOG_INFO_FMT("CURL DEBUG: {}", s);
+    return 0;
+  }
+
   class TessApp : public ccf::UserRpcFrontend
   {
   public:
@@ -154,6 +170,62 @@ namespace ccf
       next_release(tables.create<NextReleaseMap>("next-release")),
       releases(tables.create<ReleasesMap>("releases"))
     {
+      oe_result_t res;
+
+      res = oe_load_module_host_socket_interface();
+      if (res != OE_OK)
+      {
+        throw std::logic_error(fmt::format(
+          "oe_load_module_host_socket_interface failed with {}", res));
+      }
+
+      res = oe_load_module_host_resolver();
+      if (res != OE_OK)
+      {
+        throw std::logic_error(
+          fmt::format("oe_load_module_host_resolver failed with {}", res));
+      }
+
+      auto curl_fetch = [this](Store::Tx& tx, const nlohmann::json& params) {
+        char error_buffer[CURL_ERROR_SIZE] = {0};
+
+        const auto url = params["url"].get<std::string>();
+
+        CURL* curl = curl_easy_init();
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+
+        // TODO: Add Github-authenticating CA, rather than skipping verification
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+        std::string response;
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debugfunc);
+
+        /* Perform the request, res will get the return code */
+        CURLcode res = curl_easy_perform(curl);
+        /* Check for errors */
+        if (res != CURLE_OK)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "curl_easy_perform failed with {}: '{}' (Details: {})",
+              res,
+              curl_easy_strerror(res),
+              error_buffer));
+        }
+
+        curl_easy_cleanup(curl);
+
+        return jsonrpc::success(response);
+      };
+      install("CURL_FETCH", curl_fetch, Read);
+
       auto roles_get = [this](RequestArgs& args) {
         return jsonrpc::success(get_roles(args.tx, args.caller_id));
       };
