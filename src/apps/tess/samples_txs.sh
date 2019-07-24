@@ -19,5 +19,8 @@ set -ex
 # Get release
 ./client --pretty-print userrpc --req '{ "jsonrpc": "2.0", "id": 0, "method": "GET_RELEASE", "params": { "release_id": 0 }}'
 
-# GET from github API, in curl, inside the enclave
-./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "CURL_FETCH", "params": {"url": "https://api.github.com/repos/octocat/Hello-World/pulls/476", "headers": ["User-Agent: CCF"]}}'
+# Set github auth token to access tess-mockup repo
+./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "SET_GITHUB_USER", "params": {"user_token": "a7cf346a5661801496299442cde471a34f531825"}}'
+
+# Get details of PR
+./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "GITHUB_GET", "params": {"path": "repos/ad-l/tess-mockup/pulls/3"}}'
