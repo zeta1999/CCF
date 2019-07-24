@@ -184,14 +184,79 @@ namespace ccf
       return *it;
     }
 
+    static constexpr auto api_root = "https://api.github.com";
+
     auto curl_github_get(ccf::Store::Tx& tx, const std::string& path)
     {
       auto user = get_github_user(tx);
 
       CURL* curl = curl_easy_init();
 
-      const auto url = fmt::format("https://api.github.com/{}", path);
+      const auto url = fmt::format("{}/{}", api_root, path);
       curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+      LOG_INFO_FMT("Sending GET request to {}", url);
+
+      std::vector<std::string> headers;
+      curl_slist* curl_headers = nullptr;
+      const auto auth_header =
+        fmt::format("Authorization: token {}", user.user_token);
+      curl_headers = curl_slist_append(curl_headers, auth_header.c_str());
+      curl_headers = curl_slist_append(curl_headers, "User-Agent: TESS-CCF");
+      curl_headers =
+        curl_slist_append(curl_headers, "content-type: application/json");
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_headers);
+
+      curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+      // TODO: Add Github-authenticating CA, rather than skipping verification
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+      std::string response;
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_writefunc);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      char error_buffer[CURL_ERROR_SIZE] = {0};
+      curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+      curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debugfunc);
+
+      CURLcode res = curl_easy_perform(curl);
+
+      if (res != CURLE_OK)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format(
+            "curl_easy_perform failed with {}: '{}' (Details: {})",
+            res,
+            curl_easy_strerror(res),
+            error_buffer));
+      }
+
+      curl_easy_cleanup(curl);
+      curl_slist_free_all(curl_headers);
+
+      return jsonrpc::success(response);
+    }
+
+    auto curl_github_post(
+      ccf::Store::Tx& tx, const std::string& path, const nlohmann::json& data)
+    {
+      auto user = get_github_user(tx);
+
+      CURL* curl = curl_easy_init();
+
+      const auto url = fmt::format("{}/{}", api_root, path);
+      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+      LOG_INFO_FMT("Sending POST request to {}", url);
+
+      curl_easy_setopt(curl, CURLOPT_POST, 1L);
+      const auto post_data = data.dump();
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data.c_str());
+
+      LOG_INFO_FMT("POST contents: {}", post_data);
 
       std::vector<std::string> headers;
       curl_slist* curl_headers = nullptr;
@@ -292,6 +357,26 @@ namespace ccf
         return curl_github_get(tx, path);
       };
       install("GITHUB_GET", github_get, Read);
+
+      auto github_post = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto path_it = params.find("path");
+        if (path_it == params.end() || !path_it->is_string())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Missing param: path");
+        }
+        const auto path = path_it->get<std::string>();
+
+        const auto contents_it = params.find("contents");
+        if (contents_it == params.end())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Missing param: contents");
+        }
+        return curl_github_post(tx, path, *contents_it);
+      };
+      install("GITHUB_POST", github_post, Read);
 
       auto roles_get = [this](RequestArgs& args) {
         return jsonrpc::success(get_roles(args.tx, args.caller_id));
