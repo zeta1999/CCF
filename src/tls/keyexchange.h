@@ -6,7 +6,9 @@
 #include "tls/entropy.h"
 #include "tls/keypair.h"
 
-#include <everest/x25519.h>
+#ifdef MOD_MBEDTLS
+#  include <everest/x25519.h>
+#endif
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>

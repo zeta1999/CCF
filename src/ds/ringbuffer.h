@@ -2,17 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ringbuffer_types.h"
+
 #include <atomic>
 #include <cstring>
 #include <functional>
-
-#ifdef _WIN32
-#  include <intrin.h>
-#else
-#  include <xmmintrin.h>
-#endif
-
-#include "ringbuffer_types.h"
 
 // This file implements a Multiple-Producer Single-Consumer ringbuffer.
 
@@ -250,7 +244,7 @@ namespace ringbuffer
           // Retry until there is sufficient space.
           do
           {
-            _mm_pause();
+            __asm__("pause;");
             r = reserve(rsize);
           } while (!r.has_value());
         }

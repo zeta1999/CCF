@@ -11,11 +11,14 @@ project(ccf C CXX)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
+cmake_policy(SET CMP0079 NEW)
+add_subdirectory(3rdparty)
+
 set(TEST_HOST_LOGGING_LEVEL "info")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
 option(BUILD_TESTS "Build tests" ON)
-option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+option(BUILD_SMALLBANK "Build SmallBank sample app and clients" OFF)
 
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
@@ -44,6 +47,7 @@ add_enclave_lib(
     src/apps/tess/tess.cpp
 )
 
+target_link_libraries(loggingenc PRIVATE libcurl)
 
 if(BUILD_TESTS)
   # Tests
