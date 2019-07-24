@@ -20,7 +20,7 @@ set -ex
 ./client --pretty-print userrpc --req '{ "jsonrpc": "2.0", "id": 0, "method": "GET_RELEASE", "params": { "release_id": 0 }}'
 
 # Set github auth token to access tess-mockup repo
-./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "SET_GITHUB_USER", "params": {"user_token": "d7b5d58a5fe432ca02f92e6d27471e36f4030bdd"}}'
+./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "SET_GITHUB_USER", "params": {"user_token": "'${GITHUB_AUTH_TOKEN}'"}}'
 
 # Get details of PR
 ./client --pretty-print userrpc --req '{"jsonrpc": "2.0", "id": 0, "method": "GITHUB_GET", "params": {"path": "repos/ad-l/tess-mockup/pulls/3"}}'
