@@ -1,6 +1,9 @@
 jobs:
 - job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
-  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
+  ${{ if parameters.override_name }}:
+    displayName: ${{ parameters.override_name }}
+  ${{ if not(parameters.override_name) }}:
+    displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
   dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
@@ -18,9 +21,5 @@ jobs:
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
     - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, '')) }}:
       - template: coverage.yml
-        parameters:
-          consensus: ${{ parameters.consensus }}
-    - ${{ if and(eq(parameters.suffix, 'Perf'), eq(parameters.consensus, 'CFT')) }}:
-      - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}

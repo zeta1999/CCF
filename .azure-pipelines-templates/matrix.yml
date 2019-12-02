@@ -90,6 +90,13 @@ jobs:
         ctest_filter: '${{ parameters.test.perf.ctest_args }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
+        override_name: '${{ parameters.target }} ${{ parameters.consensus }} Perf'
+
+  # Push performance results - depends on optimised perf test builds
+  - template: push_perf_data.yml
+    dependsOn:
+      - ${{ each consensus in parameters.consensus }}:
+        'SGX ${{ consensus }} Perf'
 
   # HTTP build (behind a toggle for now), only on NoSGX and CFT
   # TODO: Once large messages are supported with HTTP (e.g. quotes over join request), SGX should be run
