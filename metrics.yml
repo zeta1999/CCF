@@ -1,2 +1,4 @@
 db: 'ccf'
 collection: 'perf'
+view: 'trend'
+columns: 3
