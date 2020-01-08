@@ -397,10 +397,24 @@ if(BUILD_TESTS)
       LABEL log_scenario
       ADDITIONAL_ARGS
         --package libloggingenc
-        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/tpal.json
+        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
         --max-writes-ahead 1000
         --repetitions 1000
     )
+  endif()
+
+  if (TPAL)
+  add_perf_test(
+    NAME tpal_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+    CLIENT_BIN ./scenario_perf_client
+    LABEL tpal
+    ADDITIONAL_ARGS
+      --package libloggingenc
+      --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/tpal.json
+      --max-writes-ahead 1000
+      --repetitions 1000
+  )
   endif()
 
   if (EXTENSIVE_TESTS)
