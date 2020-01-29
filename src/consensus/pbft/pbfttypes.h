@@ -2,22 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
 #include "consensus/pbft/pbftpreprepares.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
 
 namespace pbft
 {
-  using Index = uint64_t;
+  using Index = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
   using CallerId = uint64_t;
 
-  enum PbftMsgType : Node2NodeMsg
+  enum PbftMsgType : std::underlying_type_t<consensus::ConsensusMsgType>
   {
-    pbft_message = 1000,
-    pbft_append_entries
+    pbft_message = 1000
   };
 
 #pragma pack(push, 1)
@@ -27,11 +27,8 @@ namespace pbft
     NodeId from_node;
   };
 
-  struct AppendEntries : PbftHeader
-  {
-    Index idx;
-    Index prev_idx;
-  };
+  struct AppendEntries : PbftHeader, consensus::AppendEntriesIndex
+  {};
 
 #pragma pack(pop)
 

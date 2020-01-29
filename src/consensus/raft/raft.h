@@ -367,11 +367,11 @@ namespace raft
       // so it is not necessary to defend against replay attacks.
       switch (serialized::peek<RaftMsgType>(data, size))
       {
-        case raft_append_entries:
+        case consensus::append_entries:
           recv_append_entries(data, size);
           break;
 
-        case raft_append_entries_response:
+        case consensus::append_entries_response:
           recv_append_entries_response(data, size);
           break;
 
@@ -475,11 +475,11 @@ namespace raft
         end_idx,
         commit_idx);
 
-      AppendEntries ae = {raft_append_entries,
+      AppendEntries ae = {consensus::append_entries,
                           local_id,
                           end_idx,
-                          current_term,
                           prev_idx,
+                          current_term,
                           prev_term,
                           commit_idx,
                           term_of_idx};
@@ -694,8 +694,11 @@ namespace raft
         last_idx,
         answer);
 
-      AppendEntriesResponse response = {
-        raft_append_entries_response, local_id, current_term, last_idx, answer};
+      AppendEntriesResponse response = {consensus::append_entries_response,
+                                        local_id,
+                                        current_term,
+                                        last_idx,
+                                        answer};
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);

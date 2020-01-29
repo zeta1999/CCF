@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
 #include "ds/ringbuffer_types.h"
 
 #include <chrono>
@@ -14,7 +15,6 @@ namespace raft
   using Index = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
-  using Node2NodeMsg = uint64_t;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
@@ -74,11 +74,9 @@ namespace raft
     }
   };
 
-  enum RaftMsgType : Node2NodeMsg
+  enum RaftMsgType : std::underlying_type_t<consensus::ConsensusMsgType>
   {
-    raft_append_entries = 0,
-    raft_append_entries_response,
-    raft_request_vote,
+    raft_request_vote = 2,
     raft_request_vote_response,
   };
 
@@ -89,11 +87,9 @@ namespace raft
     NodeId from_node;
   };
 
-  struct AppendEntries : RaftHeader
+  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
-    Index idx;
     Term term;
-    Index prev_idx;
     Term prev_term;
     Index leader_commit_idx;
     Term term_of_idx;
