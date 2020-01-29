@@ -28,7 +28,7 @@
 namespace pbft
 {
   // maps node to last sent index to that node
-  using NodesMap = std::unordered_map<NodeId, ccf::Index>;
+  using NodesMap = std::unordered_map<NodeId, Index>;
   class PbftEnclaveNetwork : public INetwork
   {
   public:
@@ -36,7 +36,7 @@ namespace pbft
       NodeId id,
       std::shared_ptr<ccf::NodeToNode> n2n_channels,
       NodesMap& nodes_,
-      ccf::Index& latest_stable_ae_index_) :
+      Index& latest_stable_ae_index_) :
       n2n_channels(n2n_channels),
       id(id),
       nodes(nodes_),
@@ -84,7 +84,7 @@ namespace pbft
       {
         auto node = nodes.find(to);
 
-        ccf::Index match_idx = 0;
+        Index match_idx = 0;
         if (node != nodes.end())
         {
           match_idx = node->second;
@@ -101,15 +101,15 @@ namespace pbft
       return msg->size();
     }
 
-    void send_append_entries(NodeId to, ccf::Index start_idx)
+    void send_append_entries(NodeId to, Index start_idx)
     {
-      ccf::Index entries_batch_size = 10;
+      Index entries_batch_size = 10;
 
-      ccf::Index end_idx = (latest_stable_ae_index == 0) ?
+      Index end_idx = (latest_stable_ae_index == 0) ?
         0 :
         std::min(start_idx + entries_batch_size, latest_stable_ae_index);
 
-      for (ccf::Index i = end_idx; i < latest_stable_ae_index;
+      for (Index i = end_idx; i < latest_stable_ae_index;
            i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
@@ -122,8 +122,7 @@ namespace pbft
       }
     }
 
-    void send_append_entries_range(
-      NodeId to, ccf::Index start_idx, ccf::Index end_idx)
+    void send_append_entries_range(NodeId to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
 
@@ -134,7 +133,8 @@ namespace pbft
         start_idx,
         end_idx);
 
-      AppendEntries ae = {consensus::append_entries, id, end_idx, prev_idx};
+      consensus::AppendEntriesIndex ae = {
+        consensus::append_entries, id, end_idx, prev_idx};
 
       auto node = nodes.find(to);
       if (node != nodes.end())
@@ -167,7 +167,7 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
     NodesMap& nodes;
-    ccf::Index& latest_stable_ae_index;
+    Index& latest_stable_ae_index;
   };
 
   template <class LedgerProxy, class ChannelProxy>
@@ -187,7 +187,7 @@ namespace pbft
     View last_commit_view;
     std::unique_ptr<pbft::PbftStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
-    ccf::Index latest_stable_ae_index = 0;
+    Index latest_stable_ae_index = 0;
 
     // When this is set, only public domain is deserialised when receving append
     // entries
@@ -217,7 +217,7 @@ namespace pbft
     struct register_mark_stable_info
     {
       pbft::PbftStore* store;
-      ccf::Index* latest_stable_ae_idx;
+      Index* latest_stable_ae_idx;
     } register_mark_stable_ctx;
 
   public:
@@ -486,21 +486,17 @@ namespace pbft
       }
       switch (serialized::peek<consensus::ConsensusMsgType>(data, size))
       {
-        case consensus::append_entries_response:
-        {
-          // TODO implement response
-          break;
-        }
         case consensus::append_entries:
         {
-          AppendEntries r;
+          consensus::AppendEntriesIndex r;
 
           auto append_entries_index = store->current_version();
 
           try
           {
-            r =
-              channels->template recv_authenticated<AppendEntries>(data, size);
+            r = channels
+                  ->template recv_authenticated<consensus::AppendEntriesIndex>(
+                    data, size);
           }
           catch (const std::logic_error& err)
           {
@@ -532,7 +528,7 @@ namespace pbft
             break;
           }
 
-          for (ccf::Index i = r.prev_idx + 1; i <= r.idx; i++)
+          for (Index i = r.prev_idx + 1; i <= r.idx; i++)
           {
             append_entries_index = store->current_version();
             LOG_TRACE_FMT("Recording entry for index {}", i);
@@ -590,12 +586,17 @@ namespace pbft
           }
           break;
         }
+        case consensus::append_entries_response:
+        {
+          // TODO implement response
+          break;
+        }
         default:
         {}
       }
     }
 
-    void set_f(ccf::NodeId f) override
+    void set_f(NodeId f) override
     {
       message_receiver_base->set_f(f);
     }

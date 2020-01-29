@@ -27,9 +27,6 @@ namespace pbft
     NodeId from_node;
   };
 
-  struct AppendEntries : consensus::AppendEntriesIndex
-  {};
-
 #pragma pack(pop)
 
   template <typename S>
