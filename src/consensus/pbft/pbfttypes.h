@@ -15,7 +15,7 @@ namespace pbft
   using Node2NodeMsg = uint64_t;
   using CallerId = uint64_t;
 
-  enum PbftMsgType : std::underlying_type_t<consensus::ConsensusMsgType>
+  enum PbftMsgType : Node2NodeMsg
   {
     pbft_message = 1000
   };
@@ -27,7 +27,7 @@ namespace pbft
     NodeId from_node;
   };
 
-  struct AppendEntries : PbftHeader, consensus::AppendEntriesIndex
+  struct AppendEntries : consensus::AppendEntriesIndex
   {};
 
 #pragma pack(pop)

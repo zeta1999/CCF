@@ -15,6 +15,7 @@ namespace raft
   using Index = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
+  using Node2NodeMsg = uint64_t;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
@@ -74,7 +75,7 @@ namespace raft
     }
   };
 
-  enum RaftMsgType : std::underlying_type_t<consensus::ConsensusMsgType>
+  enum RaftMsgType : Node2NodeMsg
   {
     raft_request_vote = 2,
     raft_request_vote_response,
@@ -87,7 +88,7 @@ namespace raft
     NodeId from_node;
   };
 
-  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
+  struct AppendEntries : consensus::AppendEntriesIndex
   {
     Term term;
     Term prev_term;
@@ -95,7 +96,7 @@ namespace raft
     Term term_of_idx;
   };
 
-  struct AppendEntriesResponse : RaftHeader
+  struct AppendEntriesResponse : consensus::ConsensusHeader
   {
     Term term;
     Index last_log_idx;

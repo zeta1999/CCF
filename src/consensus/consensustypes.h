@@ -4,13 +4,12 @@
 #include <stdint.h>
 
 namespace ccf
-{  
+{
   using ObjectId = uint64_t;
   using Term = ObjectId;
   using NodeId = ObjectId;
   using Index = int64_t;
   using Node2NodeMsg = ObjectId;
-
 }
 
 namespace consensus
@@ -23,13 +22,13 @@ namespace consensus
 
 #pragma pack(push, 1)
 
-  // struct ConsensusHeader
-  // {
-  //   ConsensusMsgType msg;
-  //   NodeId from_node;
-  // };
+  struct ConsensusHeader
+  {
+    ConsensusMsgType msg;
+    ccf::NodeId from_node;
+  };
 
-  struct AppendEntriesIndex
+  struct AppendEntriesIndex : ConsensusHeader
   {
     ccf::Index idx;
     ccf::Index prev_idx;

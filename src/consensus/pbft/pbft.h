@@ -481,7 +481,17 @@ namespace pbft
           message_receiver_base->receive_message(data, size);
           break;
         }
-        case pbft_append_entries:
+        default:
+        {}
+      }
+      switch (serialized::peek<consensus::ConsensusMsgType>(data, size))
+      {
+        case consensus::append_entries_response:
+        {
+          // TODO implement response
+          break;
+        }
+        case consensus::append_entries:
         {
           AppendEntries r;
 
@@ -580,6 +590,8 @@ namespace pbft
           }
           break;
         }
+        default:
+        {}
       }
     }
 

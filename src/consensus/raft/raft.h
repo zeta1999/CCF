@@ -367,20 +367,26 @@ namespace raft
       // so it is not necessary to defend against replay attacks.
       switch (serialized::peek<RaftMsgType>(data, size))
       {
-        case consensus::append_entries:
-          recv_append_entries(data, size);
-          break;
-
-        case consensus::append_entries_response:
-          recv_append_entries_response(data, size);
-          break;
-
         case raft_request_vote:
           recv_request_vote(data, size);
           break;
 
         case raft_request_vote_response:
           recv_request_vote_response(data, size);
+          break;
+
+        default:
+        {}
+      }
+
+      switch (serialized::peek<consensus::ConsensusMsgType>(data, size))
+      {
+        case consensus::append_entries:
+          recv_append_entries(data, size);
+          break;
+
+        case consensus::append_entries_response:
+          recv_append_entries_response(data, size);
           break;
 
         default:
