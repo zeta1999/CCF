@@ -154,7 +154,7 @@ jobs:
       - template: ninja.yml
       - template: publish_build.yml
         parameters:
-          artifact_name: SGX_Debug_Build
+          artifact_name: SGX_Debug_Build_${{ consensus }}
 
   - job: Test_SGX_${{ consensus }}_Debug_A
     variables:
@@ -168,7 +168,7 @@ jobs:
     steps:
       - template: download_build.yml
         parameters:
-          artifact_name: SGX_Debug_Build
+          artifact_name: SGX_Debug_Build_${{ consensus }}
       - template: test.yml
         parameters:
           ctest_filter: ${{ parameters.test.SGX.ctest_args }} -I 1,,2
@@ -186,7 +186,7 @@ jobs:
     steps:
       - template: download_build.yml
         parameters:
-          artifact_name: SGX_Debug_Build
+          artifact_name: SGX_Debug_Build_${{ consensus }}
       - template: test.yml
         parameters:
           ctest_filter: ${{ parameters.test.SGX.ctest_args }} -I 2,,2
