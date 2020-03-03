@@ -173,3 +173,21 @@ jobs:
         parameters:
           ctest_filter: ${{ parameters.test.SGX.ctest_args }} -I 1,,2
           suite_name_suffix: 'SGX ${{ consensus }} Debug tests'
+
+  - job: Test_SGX_${{ consensus }}_Debug_B
+    variables:
+      skipComponentGovernanceDetection: true
+    displayName: 'Test SGX ${{ consensus }} Debug B'
+
+    dependsOn: ['Build_SGX_${{ consensus }}_Debug']
+    container: sgx
+    pool: CCF-CI-SGX-Workers
+
+    steps:
+      - template: download_build.yml
+        parameters:
+          artifact_name: SGX_Debug_Build
+      - template: test.yml
+        parameters:
+          ctest_filter: ${{ parameters.test.SGX.ctest_args }} -I 2,,2
+          suite_name_suffix: 'SGX ${{ consensus }} Debug tests'
