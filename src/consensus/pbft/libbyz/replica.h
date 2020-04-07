@@ -275,7 +275,7 @@ private:
   // If ByzInfo is provided there is no need to execute since execution has
   // already happened and relative information resides in info
 
-  void send_commit(Seqno s, bool send_only_to_self = false);
+  void send_commit(Seqno s, View view, bool send_only_to_self = false);
 
   void send_null();
   // Send a pre-prepare with a null request if the system is idle

@@ -99,6 +99,17 @@ public:
 
   void set_view(View v);
 
+  //   View execution_view() const;
+  // // Effects: Fetches the view number that the pre prepare requests were
+  // // executed in. This will be different from "view()" only in the case where
+  // // the majority of the replicas executed the pre prepare requests in a
+  // // previous view, but the caller replica is executing the requests during a
+  // // view change. When that happens "view()" will be the current view and
+  // // "execution_view()" will be the view that the majorty of the replicas
+  // // executed the pre prepare requests in
+
+  // void set_execution_view(View v);
+
   Seqno seqno() const;
   // Effects: Fetches the sequence number from the message.
 
@@ -240,6 +251,11 @@ public:
 
 private:
   uint64_t nonce;
+  //  View execution_v = 0; // the view number that the pre prepare requests were
+                    // executed in.
+  // This will be different from "v" only in the case where the majority of the
+  // replicas executed the pre prepare requests in a previous view, but the
+  // caller replica is executing the requests during a view change
 
   Pre_prepare_rep& rep() const;
   // Effects: Casts contents to a Pre_prepare_rep&
@@ -263,6 +279,16 @@ inline Pre_prepare_rep& Pre_prepare::rep() const
   PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Pre_prepare_rep*)msg);
 }
+
+// inline View Pre_prepare::execution_view() const
+// {
+//   return execution_v;
+// }
+
+// inline void Pre_prepare::set_execution_view(View v)
+// {
+//   execution_v = v;
+// }
 
 inline char* Pre_prepare::requests()
 {
@@ -306,6 +332,21 @@ inline Seqno Pre_prepare::seqno() const
 
 inline bool Pre_prepare::match(const Prepare* p) const
 {
+  LOG_INFO_FMT("logging match for prepare and pre prepare");
+//  auto v = view();
+//   auto pv = p->view();
+//   auto s = seqno();
+//   auto ps = p->seqno();
+//   auto d = digest().hash();
+//   auto pd = p->digest().hash();
+//   LOG_INFO_FMT(
+//     "view {} p view {} seqno {} p seqno {} digest {} p digest {}",
+//     v,
+//     pv,
+//     s,
+//     ps,
+//     d,
+//     pd);
   PBFT_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
   return digest() == p->digest();
 }

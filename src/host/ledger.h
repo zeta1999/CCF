@@ -155,14 +155,20 @@ namespace asynchost
       LOG_DEBUG_FMT("Ledger write {}: {} bytes", positions.size(), size);
 
       total_len += (size + frame_header_size);
-
+      LOG_DEBUG_FMT("total len {}", total_len);
       uint32_t frame = (uint32_t)size;
 
       if (fwrite(&frame, frame_header_size, 1, file) != 1)
+      {
+        LOG_INFO_FMT("failed to write to file");
         throw std::logic_error("Failed to write to file");
+      }
 
       if (fwrite(data, size, 1, file) != 1)
+      {
+        LOG_INFO_FMT("failed to write to file");
         throw std::logic_error("Failed to write to file");
+      }
     }
 
     void truncate(size_t last_idx)

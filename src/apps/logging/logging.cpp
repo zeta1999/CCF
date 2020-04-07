@@ -91,6 +91,7 @@ namespace ccfapp
 
         if (in.msg.empty())
         {
+          LOG_INFO_FMT("make error");
           return make_error(
             HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
@@ -110,6 +111,7 @@ namespace ccfapp
         if (r.has_value())
           return make_success(LoggingGet::Out{r.value()});
 
+        LOG_INFO_FMT("make error");
         return make_error(
           HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
       };
@@ -123,6 +125,7 @@ namespace ccfapp
 
         if (validation_error.has_value())
         {
+          LOG_INFO_FMT("make error");
           return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
@@ -130,6 +133,7 @@ namespace ccfapp
         const auto msg = params["msg"].get<std::string>();
         if (msg.empty())
         {
+          LOG_INFO_FMT("make error");
           return make_error(
             HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
@@ -147,6 +151,7 @@ namespace ccfapp
 
         if (validation_error.has_value())
         {
+          LOG_INFO_FMT("make error");
           return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
 
@@ -161,6 +166,7 @@ namespace ccfapp
           return make_success(result);
         }
 
+        LOG_INFO_FMT("make error");
         return make_error(
           HTTP_STATUS_BAD_REQUEST,
           fmt::format("No such record: {}", id.dump()));
@@ -207,6 +213,7 @@ namespace ccfapp
           const auto in = params.get<LoggingRecord::In>();
           if (in.msg.empty())
           {
+            LOG_INFO_FMT("make error");
             return make_error(
               HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
           }

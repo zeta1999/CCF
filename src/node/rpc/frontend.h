@@ -14,6 +14,7 @@
 #include "notifier_interface.h"
 #include "rpc_exception.h"
 #include "tls/verifier.h"
+#include "tls/base64.h"
 
 #include <fmt/format_header_only.h>
 #include <mutex>
@@ -403,12 +404,14 @@ namespace ccf
         }
         catch (const RpcException& e)
         {
+          LOG_INFO_FMT("catch error");
           ctx->set_response_status(e.status);
           ctx->set_response_body(e.what());
           return ctx->serialise_response();
         }
         catch (JsonParseError& e)
         {
+          LOG_INFO_FMT("catch error");
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
@@ -416,6 +419,7 @@ namespace ccf
         }
         catch (const kv::KvSerialiserException& e)
         {
+          LOG_INFO_FMT("catch error");
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
@@ -424,6 +428,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
+          LOG_INFO_FMT("catch error");
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           ctx->set_response_body(e.what());
           return ctx->serialise_response();
@@ -559,6 +564,10 @@ namespace ccf
       if (!playback)
       {
         auto req_view = tx.get_view(*pbft_requests_map);
+        LOG_INFO_FMT("writing caller id {}, serialized req {}, pbft raw {}",
+           ctx->session->original_caller.value().caller_id,
+           tls::b64_from_raw(ctx->get_serialised_request().data(), ctx->get_serialised_request().size()),
+           tls::b64_from_raw(ctx->pbft_raw.data(), ctx->pbft_raw.size()));
         req_view->put(
           0,
           {ctx->session->original_caller.value().caller_id,
@@ -569,6 +578,11 @@ namespace ccf
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id);
+
+      if (ctx->response_is_error())
+      {
+        LOG_INFO_FMT("response is error");
+      }
 
       version = tx.get_version();
 
@@ -599,6 +613,7 @@ namespace ccf
     {
       if (!ctx->session->original_caller.has_value())
       {
+        LOG_INFO_FMT("throw error");
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
       }
@@ -613,6 +628,7 @@ namespace ccf
       {
         // This should never be called when process_command is called with a
         // forwarded RPC context
+        LOG_INFO_FMT("throw error");
         throw std::logic_error("Forwarded RPC cannot be forwarded");
       }
 

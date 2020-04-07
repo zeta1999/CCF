@@ -484,6 +484,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   auto owned_req = req.release();
   if (!brt.add_request(owned_req))
   {
+    LOG_INFO_FMT("WAT");
     delete owned_req;
   }
 }
@@ -879,6 +880,11 @@ void Replica::handle(Request* m)
                   << " in view: " << view() << " with rid: " << rid
                   << std::endl;
         INCR_OP(message_counts_retransmitted[Reply_tag]);
+        if (pp == 0)
+        {
+          LOG_INFO_FMT("pre prepare is zero");
+        }
+        // LOG_INFO_FMT("send full reply curr view {} execution view {}", view(), pp->execution_view());
         replies.send_reply(client_id, view(), id(), false);
       }
       else if (id() != primary() && rqueue.append(m))
@@ -1171,7 +1177,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         {
           LOG_TRACE << "pc is complete for seqno: " << msg->seqno
                     << " and sending commit" << std::endl;
-          self->send_commit(msg->seqno, send_node_id == self->node_id);
+          self->send_commit(msg->seqno, self->view(), send_node_id == self->node_id);
         }
 
         self->is_exec_pending = false;
@@ -1201,7 +1207,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
   try_send_prepare();
 }
 
-void Replica::send_commit(Seqno s, bool send_only_to_self)
+void Replica::send_commit(Seqno s, View view, bool send_only_to_self)
 {
   size_t before_f = f();
   // Executing request before sending commit improves performance
@@ -1211,7 +1217,7 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
     execute_prepared();
   }
 
-  Commit* c = new Commit(view(), s);
+  Commit* c = new Commit(view, s);
   int send_node_id = (send_only_to_self ? node_id : All_replicas);
   send(c, send_node_id);
 
@@ -1254,7 +1260,7 @@ void Replica::handle(Prepare* m)
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
-      send_commit(ms, f() == 0);
+      send_commit(ms, view(), f() == 0);
     }
     return;
   }
@@ -1323,8 +1329,10 @@ void Replica::handle(Checkpoint* m)
     const bool m_stable = m->stable();
     Certificate<Checkpoint>& cs = elog.fetch(ms);
     // cs.add calls m->verify
+    LOG_INFO_FMT("adding checkpoint");
     if (cs.add(m) && cs.mine() && cs.is_complete())
     {
+      LOG_INFO_FMT("adding checkpoint");
       // I have enough Checkpoint messages for m->seqno() to make it stable.
       // Truncate logs, discard older stable state versions.
       PBFT_ASSERT(
@@ -1341,6 +1349,7 @@ void Replica::handle(Checkpoint* m)
       if (clog.within_range(last_executed))
       {
         Time t = 0;
+        LOG_INFO_FMT("adding checkpoint");
         clog.fetch(last_executed).mine(t);
         // If the commit message for last_executed was sent sufficently long
         // ago, and at least f+1 replicas have reached the checkpoint with the
@@ -1349,6 +1358,7 @@ void Replica::handle(Checkpoint* m)
           cs.num_correct() > f() &&
           diff_time(ITimer::current_time(), t) > 5 * ITimer::length_100_ms())
         {
+          LOG_INFO_FMT("adding checkpoint");
           fetch_state_outside_view_change();
         }
       }
@@ -2081,41 +2091,47 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       req_in_pp++;
     }
 
-    if (primary() == id())
-    {
-      ByzInfo info;
-      pc.add_mine(pp);
-      if (execute_tentative(pp, info, pp->get_nonce()))
+      // pp->set_view(prev_view);
+      if (encryptor)
       {
-        if (ledger_writer && req_in_pp > 0)
+         encryptor->set_view(prev_view);
+      }
+      if (primary() == id())
+      {
+        ByzInfo info;
+        pc.add_mine(pp);
+        if (execute_tentative(pp, info, pp->get_nonce()))
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+          if (ledger_writer && req_in_pp > 0)
+          {
+            last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+          }
         }
       }
-    }
-    else
-    {
-      ByzInfo info;
-      pc.add_old(pp);
-      uint64_t nonce = entropy->random64();
-
-      if (execute_tentative(pp, info, nonce))
+      else
       {
-        if (ledger_writer && req_in_pp > 0)
+        ByzInfo info;
+        pc.add_old(pp);
+        uint64_t nonce = entropy->random64();
+
+        if (execute_tentative(pp, info, nonce))
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+          if (ledger_writer && req_in_pp > 0)
+          {
+            last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+          }
         }
+
+        auto is_signed = pp->is_signed();
+        Prepare* p = new Prepare(v, i, d, nonce, nullptr, is_signed);
+        pc.add_mine(p);
+        send(p, All_replicas);
       }
 
-      Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
-      pc.add_mine(p);
-      send(p, All_replicas);
-    }
-
-    if (i <= last_executed || pc.is_complete())
-    {
-      send_commit(i);
-    }
+      if (i <= last_executed || pc.is_complete())
+      {
+        send_commit(i, v);
+      }
   }
 
   if (primary() == id())
@@ -2287,6 +2303,11 @@ void Replica::execute_prepared(bool committed)
 #endif
         {
           // Send full reply.
+          if (pp == 0)
+          {
+            LOG_INFO_FMT("pre prepare is zero");
+          }
+          // LOG_INFO_FMT("send full reply curr view {} execution view {}", view(), pp->execution_view());
 #ifdef ENFORCE_EXACTLY_ONCE
           replies.send_reply(client_id, view(), id(), !committed);
 #else

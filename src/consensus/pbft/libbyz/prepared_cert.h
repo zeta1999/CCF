@@ -175,20 +175,20 @@ inline bool Prepared_cert::add(Prepare* m)
 
 inline bool Prepared_cert::add_mine(Prepare* m)
 {
-  PBFT_ASSERT(
-    pbft::GlobalState::get_node().id() !=
-        pbft::GlobalState::get_node().primary(m->view()) ||
-      pbft::GlobalState::get_node().f() == 0,
-    "Invalid Argument");
+  // PBFT_ASSERT(
+  //   pbft::GlobalState::get_node().id() !=
+  //       pbft::GlobalState::get_node().primary(m->view()) ||
+  //     pbft::GlobalState::get_node().f() == 0,
+  //   "Invalid Argument");
   return prepare_cert.add_mine(m);
 }
 
 inline bool Prepared_cert::add_mine(Pre_prepare* m)
 {
-  PBFT_ASSERT(
-    pbft::GlobalState::get_node().id() ==
-      pbft::GlobalState::get_node().primary(m->view()),
-    "Invalid Argument");
+  // PBFT_ASSERT(
+  //   pbft::GlobalState::get_node().id() ==
+  //     pbft::GlobalState::get_node().primary(m->view()),
+  //   "Invalid Argument");
   PBFT_ASSERT(!pp_info.pre_prepare(), "Invalid state");
   prepare_cert.update();
   pp_info.add_complete(m);

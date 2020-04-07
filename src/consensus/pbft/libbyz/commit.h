@@ -109,6 +109,17 @@ inline int Commit::id() const
 
 inline bool Commit::match(const Commit* c) const
 {
+  LOG_INFO_FMT("logging match for commit");
+  // auto v = view();
+  // auto pv = c->view();
+  // auto s = seqno();
+  // auto ps = c->seqno();
+  // LOG_INFO_FMT(
+  //   "view {} c view {} seqno {} c seqno {}",
+  //   v,
+  //   pv,
+  //   s,
+  //   ps);
   PBFT_ASSERT(view() == c->view() && seqno() == c->seqno(), "Invalid argument");
   return true;
 }

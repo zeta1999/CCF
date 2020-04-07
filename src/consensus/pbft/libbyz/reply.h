@@ -183,9 +183,23 @@ inline bool Reply::match(Reply* r)
 {
   if (r == nullptr)
   {
+    LOG_INFO_FMT("r is nullptr!");
     return false;
   }
-
+  auto rn = rep().n;
+  auto rrn = r->rep().n;
+  auto ist = is_tentative();
+  auto rist = r->is_tentative();
+  auto v = view();
+  auto rv = r->view();
+  LOG_INFO_FMT(
+    "rep n {} r rep n {} is_tent {} r is_tent {}, view {}, r view {}",
+    rn,
+    rrn,
+    ist,
+    rist,
+    v,
+    rv);
   return (rep().n == r->rep().n) &
     ((!is_tentative() & !r->is_tentative()) | (view() == r->view()));
 }

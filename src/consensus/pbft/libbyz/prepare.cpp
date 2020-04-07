@@ -136,6 +136,8 @@ bool Prepare::pre_verify()
     !pbft::GlobalState::get_node().is_replica(id()) ||
     id() == pbft::GlobalState::get_node().id())
   {
+    LOG_INFO_FMT("Not verified id {} getnode id {}", id(), pbft::GlobalState::get_node().id());
+    LOG_INFO_FMT("is replica {}", pbft::GlobalState::get_node().is_replica(id()));
     return false;
   }
 
@@ -144,19 +146,24 @@ bool Prepare::pre_verify()
     // Check signature size.
 #ifndef USE_PKEY
     if (
-      view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
+      pbft::GlobalState::get_replica().view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
       size() - (int)sizeof(Prepare_rep) <
         pbft::GlobalState::get_node().auth_size(id()))
     {
+      LOG_INFO_FMT("the size thing {}", (size() - (int)sizeof(Prepare_rep) <
+        pbft::GlobalState::get_node().auth_size(id())));
+      LOG_INFO_FMT("The view thing view mode {} id {}", pbft::GlobalState::get_replica().view() % pbft::GlobalState::get_replica().num_of_replicas(), id());
       return false;
     }
 
     return true;
 #else
     if (
-      view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
+      pbft::GlobalState::get_replica().view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
       size() - (int)sizeof(Prepare_rep) < pbft_max_signature_size)
     {
+      LOG_INFO_FMT("the size thing {}", (size() - (int)sizeof(Prepare_rep) < pbft_max_signature_size));
+      LOG_INFO_FMT("The view thing view mode {} id {}", pbft::GlobalState::get_replica().view() % pbft::GlobalState::get_replica().num_of_replicas(), id());
       return false;
     }
     return true;

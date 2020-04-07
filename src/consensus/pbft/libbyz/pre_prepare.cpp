@@ -32,6 +32,7 @@ Pre_prepare::Pre_prepare(
         pbft::GlobalState::get_node()
           .num_of_replicas()), // signatures for the previous pre_prepare
   nonce(nonce_)
+  // execution_v(v)
 {
   rep().view = v;
   rep().seqno = s;

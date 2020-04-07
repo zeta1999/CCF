@@ -138,9 +138,13 @@ public:
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
 
+  View get_latest_view();
+
 private:
   std::bitset<Max_num_replicas>
     bmap; // bitmap with replicas whose message is in this.
+
+  View latest_view = 0;
 
   class Message_val
   {
@@ -350,6 +354,12 @@ void Certificate<T>::reset_f()
 }
 
 template <class T>
+View Certificate<T>::get_latest_view()
+{
+  return latest_view;
+}
+
+template <class T>
 bool Certificate<T>::add(T* msg)
 {
   auto principal = pbft::GlobalState::get_node().get_principal(msg->id());
@@ -377,6 +387,8 @@ bool Certificate<T>::add(T* msg)
     c = vals;
     delete c->msg;
     c->msg = msg;
+    latest_view = msg->view();
+    LOG_INFO_FMT("setting latest view to {}", latest_view);
     mym = msg;
     c->count++;
     return true;
@@ -407,6 +419,8 @@ bool Certificate<T>::add(T* msg)
           // if c->msg is not full and msg is, replace c->msg
           delete c->msg;
           c->msg = msg;
+          latest_view = msg->view();
+          LOG_INFO_FMT("setting latest view to {}", latest_view);
         }
         else
         {
@@ -432,6 +446,8 @@ bool Certificate<T>::add(T* msg)
             // if val.msg is not full and msg is, replace val.msg
             delete val.msg;
             val.msg = msg;
+            latest_view = msg->view();
+            LOG_INFO_FMT("setting latest view to {}", latest_view);
           }
           else
           {
@@ -445,6 +461,8 @@ bool Certificate<T>::add(T* msg)
       if (cur_size < max_size)
       {
         vals[cur_size].msg = msg;
+        latest_view = msg->view();
+        LOG_INFO_FMT("setting latest view to {}", latest_view);
         vals[cur_size++].count = 1;
         return true;
       }
@@ -516,6 +534,8 @@ bool Certificate<T>::add_mine(T* msg)
 
   delete c->msg;
   c->msg = msg;
+  latest_view = msg->view();
+  LOG_INFO_FMT("setting latest view to {}", latest_view);
   c->count++;
   mym = msg;
   t_sent = ITimer::current_time();

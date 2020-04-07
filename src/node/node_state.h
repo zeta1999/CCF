@@ -1541,6 +1541,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
+      // encryptor = std::make_shared<NullTxEncryptor>();
       if (network.consensus_type == ConsensusType::PBFT)
       {
         encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);

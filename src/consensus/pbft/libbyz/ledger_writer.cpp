@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 #include "ledger_writer.h"
+#include "tls/base64.h"
 
 #include "request.h"
 
@@ -33,11 +34,20 @@ kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp, View view)
 
 kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
+  // pp->set_execution_view(pp->view());
+  auto s = pp->seqno();
+  auto nbr = pp->num_big_reqs();
+  auto v = pp->view();
   LOG_TRACE_FMT(
     "Writing pre prepare with seqno {}, num big reqs {}, view {}",
-    pp->seqno(),
-    pp->num_big_reqs(),
-    pp->view());
+    s,
+    nbr,
+    v);
+  
+  LOG_INFO_FMT("Writing pre prepare with digest sig {}, contents {} and mr {}",
+  tls::b64_from_raw(pp->get_digest_sig().data(), pp->get_digest_sig().size()),
+  tls::b64_from_raw((const uint8_t*)pp->contents(), pp->size()),
+  tls::b64_from_raw(pp->get_replicated_state_merkle_root().data(), pp->get_replicated_state_merkle_root().size()));
 
   return store.commit_pre_prepare(
     {pp->seqno(),
