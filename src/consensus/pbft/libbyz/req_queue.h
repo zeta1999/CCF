@@ -10,6 +10,7 @@
 #include "pbft_assert.h"
 #include "request.h"
 #include "types.h"
+#include "robin-hood-hashing/src/include/robin_hood.h"
 
 #include <algorithm>
 #include <unordered_map>
@@ -85,7 +86,7 @@ private:
       return k.cid ^ k.rid;
     }
   };
-  std::unordered_map<Key, std::unique_ptr<RNode>, KeyHash>
+  robin_hood::unordered_map<Key, std::unique_ptr<RNode>, KeyHash>
     reqs[enclave::ThreadMessaging::max_num_threads];
   mutable snmalloc::DLList<RNode>
     rnodes[enclave::ThreadMessaging::max_num_threads];

@@ -332,10 +332,10 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
     }
 
     ctx = it->second.get();
-    current_statistics.time_spent.fetch_add(
-      milliseconds_since_start - ctx->start_time);
-    current_statistics.count_num_samples++;
   }
+  current_statistics.time_spent.fetch_add(
+    milliseconds_since_start - ctx->start_time);
+  current_statistics.count_num_samples++;
 
   LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
             << " seqno: " << reply->seqno() << " view " << reply->view()
