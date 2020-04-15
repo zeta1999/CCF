@@ -8,6 +8,7 @@ steps:
   - script: ./cimetrics_env.sh python -m cimetrics.plot
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      SYSTEM_PULLREQUEST_TARGETBRANCH: pbft
     workingDirectory: tests
     displayName: 'Plot cimetrics'
 
