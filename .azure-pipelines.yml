@@ -2,36 +2,16 @@ trigger:
   batch: true
   branches:
     include:
-      - master
-      - 'refs/tags/v*'
-  paths:
-    exclude:
-      - 'README.md'
-      - 'CCF-TECHNICAL-REPORT.pdf'
-      - 'Doxyfile'
-      - 'THIRD_PARTY_NOTICES.txt'
-      - 'getting_started/'
-      - 'sphinx/'
-      - '.github/'
-      - '.azure-pipelines-gh-pages.yml'
-      - 'LICENSE'
+      - pbft
 
 pr:
   autoCancel: true
   branches:
     include:
-      - master
+      - pbft
   paths:
     include:
       - '*'
-
-schedules:
-- cron: "0 3 * * Mon-Fri"
-  displayName: Daily morning build
-  branches:
-    include:
-    - master
-  always: true
 
 resources:
   containers:
