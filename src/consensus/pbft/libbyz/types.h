@@ -77,7 +77,7 @@ struct ExecCommandMsg
     int64_t& max_local_commit_value_,
     int replier_,
     int reply_thread_,
-    void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
+    void (*cb_)(ExecCommandMsg& msg, ByzInfo& info, bool did_conflict_occur),
     // if tx is nullptr we are in normal execution, otherwise we
     // are in playback mode
     ccf::Store::Tx* tx_ = nullptr) :
@@ -110,7 +110,7 @@ struct ExecCommandMsg
   Seqno last_tentative_execute;
   int64_t& max_local_commit_value;
   int replier;
-  void (*cb)(ExecCommandMsg& msg, ByzInfo& info);
+  void (*cb)(ExecCommandMsg& msg, ByzInfo& info, bool did_conflict_occur);
 };
 
 using ExecCommand = std::function<int(

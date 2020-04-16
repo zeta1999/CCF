@@ -68,7 +68,7 @@ public:
         info.replicated_state_merkle_root.data()[0] = request->rt;
 
         REQUIRE(request->rt == command_counter);
-        msg->cb(*msg.get(), info);
+        msg->cb(*msg.get(), info, false);
       }
       return 0;
     };

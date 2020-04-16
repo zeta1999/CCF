@@ -31,9 +31,7 @@ Pre_prepare::Pre_prepare(
       (pbft_max_signature_size + sizeof(uint64_t)) *
         pbft::GlobalState::get_node()
           .num_of_replicas()), // signatures for the previous pre_prepare
-  nonce(nonce_),
-  big_req_ds(std::make_unique<Digest[]>(Max_requests_in_batch))
-
+  nonce(nonce_)
 {
   rep().view = v;
   rep().seqno = s;
@@ -64,6 +62,7 @@ Pre_prepare::Pre_prepare(
     pbft::GlobalState::get_replica().max_nd_bytes() - pbft_max_signature_size;
 #endif
 
+  Digest big_req_ds[Max_requests_in_batch];
   for (Request* req = reqs.first(); req != 0; req = reqs.first())
   {
     // Big requests are sent offline and their digests are sent
@@ -163,17 +162,6 @@ bool Pre_prepare::should_reorder() const
 void Pre_prepare::record_tx_execution_conflict()
 {
   rep().flags.should_reorder = false;
-  auto n_big_reqs = rep().n_big_reqs;
-  for (int i = 0; i < n_big_reqs; i++)
-  {
-    *(big_reqs() + i) = big_req_ds[i];
-  }
-  big_req_ds.reset(nullptr);
-}
-
-void Pre_prepare::cleanup_after_send()
-{
-  big_req_ds.reset(nullptr);
 }
 
 Pre_prepare* Pre_prepare::clone(View v) const

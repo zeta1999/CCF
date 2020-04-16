@@ -16,6 +16,9 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+
 // Helper functions to use a dummy encryption key
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {

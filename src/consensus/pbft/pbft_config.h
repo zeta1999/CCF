@@ -89,8 +89,10 @@ namespace pbft
 
       ExecCommandMsg& exec_msg = *execution_ctx.msg.get();
 
+      bool did_conflict_occur = execution_ctx.self->store->did_conflict_occur();
+
       info.ctx = execution_ctx.version;
-      execution_ctx.msg->cb(exec_msg, info);
+      execution_ctx.msg->cb(exec_msg, info, did_conflict_occur);
 
       --info.pending_cmd_callbacks;
 
@@ -225,7 +227,8 @@ namespace pbft
         uint64_t nonce,
         bool executed_single_threaded) {
         info.pending_cmd_callbacks = num_requests;
-        info.version_before_execution_start = store->current_version();
+        info.version_before_execution_start =
+          store->set_store_last_valid_version();
         for (uint32_t i = 0; i < num_requests; ++i)
         {
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];

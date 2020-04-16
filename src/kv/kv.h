@@ -6,6 +6,7 @@
 #include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
+#include "ds/thread_messaging.h"
 #include "kv_types.h"
 
 #include <functional>
@@ -71,9 +72,19 @@ namespace kv
     {
       Version version;
       V value;
+      uint8_t last_tid;
 
       VersionV() = default;
-      VersionV(Version ver, V val) : version(ver), value(val) {}
+      VersionV(Version ver, V val) :
+        version(ver),
+        value(val),
+        last_tid((uint8_t)-1)
+      {}
+      VersionV(Version ver, V val, uint8_t tid) :
+        version(ver),
+        value(val),
+        last_tid(tid)
+      {}
     };
 
     using State = champ::Map<K, VersionV, H>;
@@ -423,7 +434,7 @@ namespace kv
           return false;
 
         // Record in the write set.
-        writes[key] = {0, value};
+        writes[key] = {0, value, (uint8_t)-1};
         return true;
       }
 
@@ -455,7 +466,7 @@ namespace kv
           else
           {
             // If we have written, change the write set to indicate a remove.
-            write->second = {NoVersion, V()};
+            write->second = {NoVersion, V(), (uint8_t)-1};
           }
 
           return true;
@@ -553,11 +564,24 @@ namespace kv
           return false;
         }
 
+        uint16_t tid =
+          enclave::ThreadMessaging::thread_messaging.get_thread_id();
+
         // Check each key in our read set.
         for (auto it = reads.begin(); it != reads.end(); ++it)
         {
           // Get the value from the current state.
           auto search = current->state.get(it->first);
+
+          if (search.has_value())
+          {
+            if (
+              search.value().last_tid != tid &&
+              search.value().version > map.store->start_version)
+            {
+              map.store->start_version = true;
+            }
+          }
 
           if (it->second == NoVersion)
           {
@@ -595,6 +619,9 @@ namespace kv
         commit_version = v;
         committed_writes = true;
 
+        uint16_t tid =
+          enclave::ThreadMessaging::thread_messaging.get_thread_id();
+
         if (!writes.empty())
         {
           auto state = map.roll->get_tail()->state;
@@ -605,7 +632,8 @@ namespace kv
             {
               // Write the new value with the global version.
               changes = true;
-              state = state.put(it->first, VersionV{v, it->second.value});
+              state = state.put(
+                it->first, VersionV{v, it->second.value, (uint8_t)tid});
             }
             else
             {
@@ -615,7 +643,7 @@ namespace kv
               if (search.has_value())
               {
                 changes = true;
-                state = state.put(it->first, VersionV{-v, V()});
+                state = state.put(it->first, VersionV{-v, V(), (uint8_t)tid});
               }
             }
           }
@@ -718,14 +746,14 @@ namespace kv
         for (size_t i = 0; i < ctr; ++i)
         {
           auto w = d.template deserialise_write<K, V>();
-          writes[std::get<0>(w)] = {0, std::get<1>(w)};
+          writes[std::get<0>(w)] = {0, std::get<1>(w), (uint8_t)-1};
         }
 
         ctr = d.deserialise_remove_header();
         for (size_t i = 0; i < ctr; ++i)
         {
           auto r = d.template deserialise_remove<K>();
-          writes[r] = {NoVersion, V()};
+          writes[r] = {NoVersion, V(), (uint8_t)-1};
         }
 
         return true;
@@ -1286,6 +1314,9 @@ namespace kv
     template <class K, class V, class H = std::hash<K>>
     using Map = Map<K, V, H, S, D>;
     using Tx = Tx<S, D>;
+
+    kv::Version start_version;
+    bool had_conflict;
 
   private:
     // All collections of Map must be ordered so that we lock their contained

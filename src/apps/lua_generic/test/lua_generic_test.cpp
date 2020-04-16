@@ -36,6 +36,9 @@ namespace ccf
   }
 }
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
 constexpr auto content_type = details::pack_to_content_type(default_format);
 
