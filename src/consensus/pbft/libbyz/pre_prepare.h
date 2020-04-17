@@ -148,10 +148,6 @@ public:
   // reorder digests
   void record_tx_execution_conflict();
 
-  // Free some memory that is no longer required once the pre-prepare has been
-  // sent
-  void cleanup_after_send();
-
   class Requests_iter
   {
     // An iterator for yielding the Requests in a Pre_prepare message.
@@ -257,7 +253,6 @@ public:
 
 private:
   uint64_t nonce;
-  std::unique_ptr<Digest[]> big_req_ds;
 
   Pre_prepare_rep& rep() const;
   // Effects: Casts contents to a Pre_prepare_rep&

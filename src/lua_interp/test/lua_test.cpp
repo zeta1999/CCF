@@ -13,6 +13,8 @@ using namespace ccf;
 using namespace ccf::lua;
 using namespace std;
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+
 static constexpr auto retnil = "return nil";
 static constexpr auto ret5 = "return 5";
 static constexpr auto mulab = "local a, b = ...; return a*b";

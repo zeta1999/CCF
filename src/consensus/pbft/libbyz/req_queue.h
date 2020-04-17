@@ -9,8 +9,8 @@
 #include "ds/thread_messaging.h"
 #include "pbft_assert.h"
 #include "request.h"
-#include "types.h"
 #include "robin-hood-hashing/src/include/robin_hood.h"
+#include "types.h"
 
 #include <algorithm>
 #include <unordered_map>

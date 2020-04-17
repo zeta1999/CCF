@@ -923,7 +923,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       if (pbft::GlobalState::get_node().f() > 0)
       {
         self->send(pp, All_replicas);
-        pp->cleanup_after_send();
       }
 
       if (self->ledger_writer)
@@ -2285,7 +2284,8 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   return cmd;
 }
 
-void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
+void Replica::execute_tentative_request_end(
+  ExecCommandMsg& msg, ByzInfo& info, bool did_conflict_occur)
 {
   // Finish constructing the reply.
   right_pad_contents(msg.outb);
@@ -2298,7 +2298,7 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
     info.pre_prepare->should_reorder() // Check if we should be reordering
   )
   {
-    if (info.ctx > 0)
+    if (info.ctx > 0 && !did_conflict_occur)
     {
       info.pre_prepare->set_request_digest(
         info.ctx - info.version_before_execution_start - 1, r.digest());
@@ -3107,7 +3107,6 @@ void Replica::send_null()
         view(), next_pp_seqno, empty, requests_in_batch, nonce, ps);
       pp->set_digest();
       send(pp, All_replicas);
-      pp->cleanup_after_send();
       plog.fetch(next_pp_seqno).add_mine(pp);
     }
   }

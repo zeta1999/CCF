@@ -15,6 +15,10 @@ extern "C"
 
 using namespace ccf;
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+std::map<std::thread::id, uint16_t> thread_ids;
+
 class DummyConsensus : public kv::StubConsensus
 {
 public:

@@ -349,7 +349,8 @@ private:
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback
 
-  static void execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info);
+  static void execute_tentative_request_end(
+    ExecCommandMsg& msg, ByzInfo& info, bool did_conflict_occur);
 
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);

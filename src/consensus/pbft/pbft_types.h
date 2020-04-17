@@ -56,6 +56,8 @@ namespace pbft
     virtual kv::Version commit_tx(
       ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
+    virtual kv::Version set_store_last_valid_version() = 0;
+    virtual bool did_conflict_occur() = 0;
   };
 
   template <typename T, typename S>
@@ -129,6 +131,32 @@ namespace pbft
           {
             return tx.get_version();
           }
+        }
+      }
+    }
+
+    kv::Version set_store_last_valid_version()
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          p->start_version = p->current_version();
+          p->had_conflict = false;
+          return p->start_version;
+        }
+      }
+    }
+
+    bool did_conflict_occur()
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          return p->had_conflict;
         }
       }
     }

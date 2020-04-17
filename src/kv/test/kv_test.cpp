@@ -16,6 +16,9 @@
 
 using namespace ccf;
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+
 TEST_CASE("Map creation")
 {
   Store kv_store;
