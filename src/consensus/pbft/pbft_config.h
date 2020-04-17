@@ -62,13 +62,15 @@ namespace pbft
         ByzInfo& info_,
         PbftConfigCcf* self_,
         bool is_first_request_,
-        uint64_t nonce_) :
+        uint64_t nonce_,
+        kv::Version commit_version_) :
         msg(std::move(msg_)),
         info(info_),
         self(self_),
         is_first_request(is_first_request_),
         did_exec_gov_req(false),
-        nonce(nonce_)
+        nonce(nonce_),
+        commit_version(commit_version_)
       {}
 
       std::unique_ptr<ExecCommandMsg> msg;
@@ -79,6 +81,7 @@ namespace pbft
       bool is_first_request;
       bool did_exec_gov_req;
       uint64_t nonce;
+      kv::Version commit_version;
     };
 
     static void ExecuteCb(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
@@ -190,7 +193,15 @@ namespace pbft
       }
       else
       {
-        rep = frontend->process_pbft(ctx);
+        if (execution_ctx.commit_version == kv::NoVersion)
+        {
+          rep = frontend->process_pbft(ctx);
+        }
+        else
+        {
+          ccf::Store::Tx tx(execution_ctx.commit_version);
+          rep = frontend->process_pbft(ctx, tx, false);
+        }
       }
       execution_ctx.version = rep.version;
 
@@ -225,16 +236,29 @@ namespace pbft
         ByzInfo& info,
         uint32_t num_requests,
         uint64_t nonce,
-        bool executed_single_threaded) {
+        bool executed_single_threaded,
+        bool is_primary) {
         info.pending_cmd_callbacks = num_requests;
         info.version_before_execution_start =
           store->set_store_last_valid_version();
         for (uint32_t i = 0; i < num_requests; ++i)
         {
+          kv::Version commit_version = kv::NoVersion;
+          if (!is_primary && !executed_single_threaded)
+          {
+            commit_version = info.version_before_execution_start + i + 1;
+          }
+
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
           uint16_t reply_thread = msg->reply_thread;
           auto execution_ctx = std::make_unique<enclave::Tmsg<ExecutionCtx>>(
-            &Execute, std::move(msg), info, this, is_first_request, nonce);
+            &Execute,
+            std::move(msg),
+            info,
+            this,
+            is_first_request,
+            nonce,
+            commit_version);
           is_first_request = false;
 
           if (info.cb != nullptr)
@@ -242,7 +266,7 @@ namespace pbft
             int tid = reply_thread;
             if (executed_single_threaded && tid > 1)
             {
-              tid = (enclave::ThreadMessaging::thread_count - 1);
+              tid = 1;
             }
             enclave::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
               tid, std::move(execution_ctx));

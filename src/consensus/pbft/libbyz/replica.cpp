@@ -474,7 +474,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, true));
 
-  exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
+  exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false, is_primary());
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
 
   auto owned_req = req.release();
@@ -2370,7 +2370,12 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
     exec_command(
-      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
+      vec_exec_cmds,
+      info,
+      num_requests,
+      nonce,
+      !pp->should_reorder(),
+      is_primary());
     return true;
   }
   return false;
@@ -2415,7 +2420,12 @@ bool Replica::execute_tentative(
     }
 
     exec_command(
-      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
+      vec_exec_cmds,
+      info,
+      num_requests,
+      nonce,
+      !pp->should_reorder(),
+      is_primary());
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));

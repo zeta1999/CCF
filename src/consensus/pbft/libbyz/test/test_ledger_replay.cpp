@@ -42,7 +42,8 @@ public:
       ByzInfo& info,
       uint32_t num_requests,
       uint64_t nonce,
-      bool executed_single_threaded) {
+      bool executed_single_threaded,
+      bool is_primary) {
       for (uint32_t i = 0; i < num_requests; ++i)
       {
         std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
