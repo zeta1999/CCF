@@ -58,6 +58,7 @@ namespace pbft
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
     virtual kv::Version set_store_last_valid_version() = 0;
     virtual bool did_conflict_occur() = 0;
+    virtual std::vector<uint8_t> get_receipt(kv::Version index) = 0;
   };
 
   template <typename T, typename S>
@@ -201,6 +202,18 @@ namespace pbft
         if (p)
         {
           return p->get_encryptor();
+        }
+      }
+    }
+
+    std::vector<uint8_t> get_receipt(kv::Version index)
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          return p->get_history()->get_receipt(index);
         }
       }
     }

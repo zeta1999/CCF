@@ -17,9 +17,10 @@ namespace pbft
     virtual void set_service_mem(char* sm) = 0;
     virtual void set_receiver(IMessageReceiveBase* message_receive_base_) = 0;
     virtual ExecCommand get_exec_command() = 0;
+    virtual ReceiptOps* get_receipts_ops() = 0;
   };
 
-  class PbftConfigCcf : public AbstractPbftConfig
+  class PbftConfigCcf : public AbstractPbftConfig, public ReceiptOps
   {
     static constexpr uint32_t max_update_merkle_tree_interval = 50;
     static constexpr uint32_t min_update_merkle_tree_interval = 10;
@@ -47,6 +48,16 @@ namespace pbft
     ExecCommand get_exec_command() override
     {
       return exec_command;
+    }
+
+    ReceiptOps* get_receipts_ops() override
+    {
+      return this;
+    }
+
+    std::vector<uint8_t> get_receipt(kv::Version index) override
+    {
+      return store->get_receipt(index);
     }
 
   private:
@@ -129,6 +140,8 @@ namespace pbft
           std::begin(info.replicated_state_merkle_root));
 
         info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
+        info.version_after_execution =
+          execution_ctx.self->store->set_store_last_valid_version();
         if (info.cb != nullptr)
         {
           info.cb(info.cb_ctx);

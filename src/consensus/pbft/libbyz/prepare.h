@@ -7,6 +7,7 @@
 
 #include "digest.h"
 #include "message.h"
+#include "nodeinfo.h"
 #include "tls/key_pair.h"
 #include "types.h"
 
@@ -103,6 +104,16 @@ public:
 
   uint64_t get_nonce() const;
   // Effects: returns the unhashed nonce
+
+  struct signature
+  {
+    uint32_t magic = 0xba5eba11;
+    NodeId id;
+    Digest d;
+    Digest n;
+
+    signature(Digest d_, NodeId id_, Digest nonce) : d(d_), id(id_), n(nonce) {}
+  };
 
 private:
   uint64_t nonce;

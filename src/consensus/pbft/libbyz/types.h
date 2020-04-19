@@ -50,6 +50,7 @@ struct ByzInfo
 {
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   kv::Version version_before_execution_start;
+  kv::Version version_after_execution;
   int64_t ctx = INT64_MIN;
   void (*cb)(void* ctx) = nullptr;
   void* cb_ctx = nullptr;
@@ -111,6 +112,12 @@ struct ExecCommandMsg
   int64_t& max_local_commit_value;
   int replier;
   void (*cb)(ExecCommandMsg& msg, ByzInfo& info, bool did_conflict_occur);
+};
+
+class ReceiptOps
+{
+public:
+  virtual std::vector<uint8_t> get_receipt(kv::Version index) = 0;
 };
 
 using ExecCommand = std::function<int(

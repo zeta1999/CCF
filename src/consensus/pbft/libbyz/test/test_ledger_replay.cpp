@@ -234,7 +234,8 @@ TEST_CASE("Test Ledger Replay")
       write_pbft_requests_map,
       write_pbft_pre_prepares_map,
       signatures);
-    pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
+    pbft::GlobalState::get_replica().register_exec(
+      exec_mock.exec_command, nullptr);
 
     for (size_t i = 1; i < total_requests; i++)
     {
@@ -273,7 +274,8 @@ TEST_CASE("Test Ledger Replay")
 
     create_replica(
       service_mem, *corr_pbft_store, corr_req_map, corr_pp_map, signatures);
-    pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
+    pbft::GlobalState::get_replica().register_exec(
+      exec_mock.exec_command, nullptr);
 
     LedgerWriter ledger_writer(*corr_pbft_store, corr_pp_map, signatures);
 
@@ -333,7 +335,8 @@ TEST_CASE("Test Ledger Replay")
       pbft_requests_map,
       pbft_pre_prepares_map,
       signatures);
-    pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
+    pbft::GlobalState::get_replica().register_exec(
+      exec_mock.exec_command, nullptr);
 
     // create rollback cb
     size_t call_rollback = 0;

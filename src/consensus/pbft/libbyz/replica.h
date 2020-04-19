@@ -18,6 +18,7 @@
 #include "node.h"
 #include "partition.h"
 #include "prepared_cert.h"
+#include "receipts.h"
 #include "receive_message_base.h"
 #include "rep_info.h"
 #include "req_queue.h"
@@ -71,8 +72,9 @@ public:
 
   // Methods to register service specific functions. The expected
   // specifications for the functions are defined below.
-  void register_exec(ExecCommand e);
-  // Effects: Registers "e" as the exec_command function.
+  void register_exec(ExecCommand e, ReceiptOps* r);
+  // Effects: Registers "e" as the exec_command function and r for
+  // and receipt based operations.
 
   int used_state_bytes() const;
   // Effects: Returns the number of bytes used up to store protocol
@@ -240,6 +242,7 @@ private:
   void handle(Reply_stable* m);
   void handle(New_principal* m);
   void handle(Network_open* m);
+  void handle(Receipts* m);
   // Effects: Execute the protocol steps associated with the arrival
   // of the argument message.
 
@@ -297,6 +300,9 @@ private:
   void execute_prepared(bool committed = false);
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
+
+  void send_receipts(Seqno pp_seqno, kv::Version before, kv::Version end);
+  // Effects: serializes the merkle tree and then stores the resulting vector.
 
   struct ExecTentativeCbCtx
   {
@@ -580,10 +586,13 @@ private:
                                             // take too long to execute
 #endif
 
+  std::map<kv::Version, int> version_to_client;
+
   //
   // Pointers to various functions.
   //
   ExecCommand exec_command;
+  ReceiptOps* receipt_ops;
 
   //
   // Statistics to set pre_prepare batch info

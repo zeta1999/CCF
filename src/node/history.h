@@ -193,6 +193,11 @@ namespace ccf
     {
       return true;
     }
+
+    std::vector<uint8_t> serialize() override
+    {
+      return {};
+    }
   };
 
   class Receipt
@@ -686,6 +691,11 @@ namespace ccf
     {
       auto r = Receipt::from_v(v);
       return replicated_state_tree.verify(r);
+    }
+
+    std::vector<uint8_t> serialize() override
+    {
+      return replicated_state_tree.serialise();
     }
   };
 

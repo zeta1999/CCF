@@ -168,9 +168,10 @@ Replica::Replica(
   encryptor = store.get_encryptor();
 }
 
-void Replica::register_exec(ExecCommand e)
+void Replica::register_exec(ExecCommand e, ReceiptOps* r)
 {
   exec_command = e;
+  receipt_ops = r;
 }
 
 Replica::~Replica() = default;
@@ -308,6 +309,10 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
 
     case Append_entries_tag:
       m = new Append_entries((uint32_t)alloc_size);
+      break;
+
+    case Receipts_tag:
+      m = new Receipts((uint32_t)alloc_size);
       break;
 
     default:
@@ -725,6 +730,10 @@ void Replica::process_message(Message* m)
       gen_handle<Network_open>(m);
       break;
 
+    case Receipts_tag:
+      gen_handle<Receipts>(m);
+      break;
+
     default:
       // Unknown message type.
       delete m;
@@ -776,6 +785,9 @@ bool Replica::pre_verify(Message* m)
 
     case New_view_tag:
       return gen_pre_verify<New_view>(m);
+
+    case Receipts_tag:
+      return gen_pre_verify<Receipts>(m);
 
 #ifndef USE_PKEY_VIEW_CHANGES
     case View_change_ack_tag:
@@ -925,14 +937,24 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         self->send(pp, All_replicas);
       }
 
-      if (self->ledger_writer)
-      {
-        self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
-      }
-
       if (pbft::GlobalState::get_node().f() == 0)
       {
+        if (self->ledger_writer)
+        {
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        }
         self->send_prepare(self->next_pp_seqno, info);
+      }
+      else
+      {
+        self->send_receipts(
+          pp->seqno(),
+          info.version_before_execution_start,
+          info.version_after_execution);
+        if (self->ledger_writer)
+        {
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        }
       }
       self->try_send_prepare();
     };
@@ -970,6 +992,29 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
              << ", btimer_state:" << btimer->get_state() << ", do_not_wait:"
              << (do_not_wait_for_batch_size ? "true" : "false") << std::endl;
     PBFT_ASSERT(false, "send_pre_prepare rqueue and btimer issue");
+  }
+}
+
+void Replica::send_receipts(Seqno pp_seqno, kv::Version before, kv::Version end)
+{
+  uint16_t target_threads = enclave::ThreadMessaging::thread_count;
+  uint32_t counter = 0;
+
+  for (uint32_t i = before; i <= end; ++i)
+  {
+    auto it = version_to_client.find(i);
+    if (it == version_to_client.end())
+    {
+      continue;
+    }
+    version_to_client.erase(it);
+    int to = it->second;
+
+    std::vector<uint8_t> receipt = receipt_ops->get_receipt(i);
+
+    Receipts rcpt(id(), to, pp_seqno, i, receipt.size(), receipt.data());
+
+    send(&rcpt, to);
   }
 }
 
@@ -1982,6 +2027,14 @@ void Replica::handle(Network_open* m)
   delete m;
 }
 
+void Replica::handle(Receipts* m)
+{
+  // LOG_INFO_FMT("TTTTTTTT receipt - seqno:{}, version:{}", m->seqno(),
+  // m->version());
+  // For now we are not doing anything with the receipts but we probably should.
+  delete m;
+}
+
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 {
   PBFT_ASSERT(ms >= 0 && ms <= min, "Invalid state");
@@ -2292,8 +2345,10 @@ void Replica::execute_tentative_request_end(
   Request r(reinterpret_cast<Request_rep*>(msg.req_start));
   r.set_replier(msg.replier);
 
+  Replica& self = pbft::GlobalState::get_replica();
+
   if (
-    pbft::GlobalState::get_replica().is_primary() &&
+    self.is_primary() &&
     info.pre_prepare != nullptr && // Make sure this is not playback
     info.pre_prepare->should_reorder() // Check if we should be reordering
   )
@@ -2319,7 +2374,9 @@ void Replica::execute_tentative_request_end(
 
   info.ctx = msg.max_local_commit_value;
 
-  pbft::GlobalState::get_replica().replies.end_reply(
+  self.version_to_client.insert({info.ctx, msg.client});
+
+  self.replies.end_reply(
     msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
 }
 

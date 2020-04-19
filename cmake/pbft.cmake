@@ -49,6 +49,7 @@ set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/new_principal.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/network_open.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/append_entries.cpp
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/receipts.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)

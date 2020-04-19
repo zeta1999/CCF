@@ -448,6 +448,7 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
+        pbft_config->get_receipts_ops(),
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
