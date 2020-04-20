@@ -69,6 +69,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             args.config,
             command_args,
             remote_impl,
+            client_id,
         )
         remote_client.setup()
         return remote_client

@@ -31,6 +31,7 @@ class CCFRemoteClient(object):
         config,
         command_args,
         remote_class,
+        client_id,
     ):
         """
         Creates a ccf client on a remote host.
@@ -38,6 +39,7 @@ class CCFRemoteClient(object):
         self.host = host
         self.name = name
         self.BIN = infra.path.build_bin_path(bin_path)
+        self.client_id = client_id
 
         # strip out the config from the path
         self.common_dir = infra.ccf.get_common_folder_name(workspace, label)
@@ -61,6 +63,7 @@ class CCFRemoteClient(object):
             self.BIN,
             f"--rpc-address={node_host}:{node_port}",
             f"--config={os.path.basename(config)}",
+            f"--client-id={client_id}",
         ] + client_command_args
 
         self.remote = remote_class(

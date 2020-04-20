@@ -59,6 +59,7 @@ namespace client
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
+    size_t client_id = 0;
     size_t session_count = 1;
     size_t max_writes_ahead = 0;
     size_t latency_rounds = 1;
@@ -132,6 +133,7 @@ namespace client
           "many for each thread, in each session)")
         ->capture_default_str();
       app.add_option("-t,--threads", thread_count)->capture_default_str();
+      app.add_option("--client-id", client_id)->capture_default_str();
       app.add_option("-s,--sessions", session_count)->capture_default_str();
       app
         .add_option(

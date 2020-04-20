@@ -9,11 +9,13 @@ using namespace nlohmann;
 struct SmallBankClientOptions : public client::PerfOptions
 {
   size_t total_accounts = 10;
+  bool partition_clients = false;
 
   SmallBankClientOptions(CLI::App& app, const std::string& default_pid_file) :
     client::PerfOptions("Small_Bank_ClientCpp", default_pid_file, app)
   {
     app.add_option("--accounts", total_accounts)->capture_default_str();
+    app.add_flag("--pc", partition_clients);
   }
 };
 
@@ -39,6 +41,9 @@ private:
                                  "SmallBank_deposit_checking",
                                  "SmallBank_balance"};
 
+  size_t from;
+  size_t to;
+
   void print_accounts(const string& header = {})
   {
     if (!header.empty())
@@ -50,7 +55,7 @@ private:
 
     nlohmann::json accs = nlohmann::json::array();
 
-    for (auto i = 0ul; i < options.total_accounts; i++)
+    for (auto i = from; i < to; i++)
     {
       BankSerializer bs(to_string(i));
       const auto response = conn->call("SmallBank_balance", bs.get_buffer());
@@ -65,8 +70,6 @@ private:
 
   std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
-    const auto from = 0;
-    const auto to = options.total_accounts;
 
     auto connection = get_connection();
     LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
@@ -96,15 +99,15 @@ private:
         case TransactionTypes::TransactSavings:
         {
           TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)),
+            to_string(from + rand_range(options.total_accounts)),
             rand_range<int>(-50, 50));
           fb = ts.get_detached_buffer();
         }
         break;
         case TransactionTypes::Amalgamate:
         {
-          unsigned int src_account = rand_range(options.total_accounts);
-          unsigned int dest_account = rand_range(options.total_accounts - 1);
+          unsigned int src_account = from + rand_range(options.total_accounts);
+          unsigned int dest_account = from + rand_range(options.total_accounts - 1);
           if (dest_account >= src_account)
           {
             dest_account += 1;
@@ -118,7 +121,7 @@ private:
         case TransactionTypes::WriteCheck:
         {
           TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)), rand_range<int>(50));
+            to_string(from + rand_range(options.total_accounts)), rand_range<int>(50));
           fb = ts.get_detached_buffer();
         }
         break;
@@ -126,7 +129,7 @@ private:
         case TransactionTypes::DepositChecking:
         {
           TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)),
+            to_string(from + rand_range(options.total_accounts)),
             (rand_range<int>(50) + 1));
           fb = ts.get_detached_buffer();
         }
@@ -134,7 +137,7 @@ private:
 
         case TransactionTypes::GetBalance:
         {
-          BankSerializer bs(to_string(rand_range(options.total_accounts)));
+          BankSerializer bs(to_string(from + rand_range(options.total_accounts)));
           fb = bs.get_detached_buffer();
         }
         break;
@@ -196,11 +199,14 @@ private:
           it->get<decltype(options.total_accounts)>();
         if (expected_accounts != options.total_accounts)
         {
-          throw std::runtime_error(
-            "Verification file is only applicable for " +
-            std::to_string(expected_accounts) +
-            " accounts, but currently have " +
-            std::to_string(options.total_accounts));
+          if (!options.partition_clients)
+          {
+            throw std::runtime_error(
+              "Verification file is only applicable for " +
+              std::to_string(expected_accounts) +
+              " accounts, but currently have " +
+              std::to_string(options.total_accounts));
+          }
         }
       }
     }
@@ -269,7 +275,16 @@ private:
   }
 
 public:
-  SmallBankClient(const SmallBankClientOptions& o) : Base(o) {}
+  SmallBankClient(const SmallBankClientOptions& o) : Base(o) {
+    from = 0;
+    to = options.total_accounts;
+
+    if (options.partition_clients)
+    {
+      from = options.client_id * options.total_accounts;
+      to = from + options.total_accounts;
+    }
+  }
 };
 
 int main(int argc, char** argv)
