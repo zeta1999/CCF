@@ -952,6 +952,12 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         self->send(pp, All_replicas);
       }
 
+      auto it = self->receipt_proofs.find(pp->seqno());
+      if (it != self->receipt_proofs.end())
+      {
+        it->second->add_proof(self->id(), pp->get_digest_sig());
+      }
+
       if (pbft::GlobalState::get_node().f() == 0)
       {
         if (self->ledger_writer)
