@@ -18,6 +18,7 @@
 #include "node.h"
 #include "partition.h"
 #include "prepared_cert.h"
+#include "receipt_proof.h"
 #include "receipts.h"
 #include "receive_message_base.h"
 #include "rep_info.h"
@@ -243,6 +244,7 @@ private:
   void handle(New_principal* m);
   void handle(Network_open* m);
   void handle(Receipts* m);
+  void handle(ReceiptProof* m);
   // Effects: Execute the protocol steps associated with the arrival
   // of the argument message.
 
@@ -599,6 +601,7 @@ private:
   //
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
+  std::map<Seqno, std::unique_ptr<ReceiptProof>> receipt_proofs;
 };
 
 inline int Replica::used_state_bytes() const

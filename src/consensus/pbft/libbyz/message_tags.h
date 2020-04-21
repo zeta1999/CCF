@@ -31,7 +31,8 @@ const short Reply_stable_tag = 17;
 const short Network_open_tag = 18;
 const short Append_entries_tag = 19;
 const short Receipts_tag = 20;
-const short Max_message_tag = 21;
+const short Receipt_proof_tag = 21;
+const short Max_message_tag = 22;
 
 // Message used for testing are in the 100+ range
 const short New_principal_tag = 100;

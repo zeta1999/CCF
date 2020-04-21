@@ -8,14 +8,14 @@
 #include "parameters.h"
 
 //
-// Network open messages have the following format:
+// Receipt messages have the following format:
 //
 #pragma pack(push)
 #pragma pack(1)
 struct Receipts_rep : public Message_rep
 {
   int id; // id of the replica that generated the message.
-  Seqno seqno; // size of the buffer that follows the receipts
+  Seqno seqno; // seqno of this receipt message
   kv::Version version;
   uint32_t receipt_msg_size; // size of the buffer that follows the receipts
   char padding[1];

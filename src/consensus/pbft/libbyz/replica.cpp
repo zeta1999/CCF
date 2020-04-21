@@ -315,6 +315,10 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
       m = new Receipts((uint32_t)alloc_size);
       break;
 
+    case Receipt_proof_tag:
+      m = new ReceiptProof((uint32_t)alloc_size);
+      break;
+
     default:
       // Unknown message type.
       auto err = fmt::format("Unknown message type:{}", Message::get_tag(data));
@@ -734,6 +738,10 @@ void Replica::process_message(Message* m)
       gen_handle<Receipts>(m);
       break;
 
+    case Receipt_proof_tag:
+      gen_handle<ReceiptProof>(m);
+      break;
+
     default:
       // Unknown message type.
       delete m;
@@ -788,6 +796,9 @@ bool Replica::pre_verify(Message* m)
 
     case Receipts_tag:
       return gen_pre_verify<Receipts>(m);
+
+    case Receipt_proof_tag:
+      return gen_pre_verify<ReceiptProof>(m);
 
 #ifndef USE_PKEY_VIEW_CHANGES
     case View_change_ack_tag:
@@ -910,6 +921,10 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     }
     Pre_prepare* pp = new Pre_prepare(
       view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ctx->nonce, ps);
+
+    receipt_proofs.insert(
+      {next_pp_seqno,
+       std::make_unique<ReceiptProof>(id(), next_pp_seqno, threshold)});
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -1220,6 +1235,14 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   int send_node_id = (send_only_to_self ? node_id : All_replicas);
   send(c, send_node_id);
 
+  auto it = receipt_proofs.find(s);
+  if (it != receipt_proofs.end())
+  {
+    send(it->second.get(), All_replicas);
+    handle(it->second.release());
+    receipt_proofs.erase(it);
+  }
+
   if (s > last_prepared)
   {
     last_prepared = s;
@@ -1256,6 +1279,12 @@ void Replica::handle(Prepare* m)
     in_wv(m) && ms > low_bound && primary() != m->id() &&
     has_complete_new_view())
   {
+    auto it = receipt_proofs.find(ms);
+    if (it != receipt_proofs.end())
+    {
+      it->second->add_proof(m->id(), m->digest_sig());
+    }
+
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
@@ -2029,8 +2058,12 @@ void Replica::handle(Network_open* m)
 
 void Replica::handle(Receipts* m)
 {
-  // LOG_INFO_FMT("TTTTTTTT receipt - seqno:{}, version:{}", m->seqno(),
-  // m->version());
+  // For now we are not doing anything with the receipts but we probably should.
+  delete m;
+}
+
+void Replica::handle(ReceiptProof* m)
+{
   // For now we are not doing anything with the receipts but we probably should.
   delete m;
 }
