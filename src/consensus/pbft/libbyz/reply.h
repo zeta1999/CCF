@@ -22,6 +22,7 @@ struct Reply_rep : public Message_rep
   View v; // current view
   Request_id rid; // unique request identifier
   Seqno n; // sequence number when request was executed
+  kv::Version version;
   uint64_t nonce; // plain text pre-prepare or prepare nonce that will be sent
                   // to the client
   int replica; // id of replica sending the reply
@@ -53,6 +54,7 @@ public:
     View view,
     Request_id req,
     Seqno n,
+    kv::Version version,
     uint64_t nonce,
     int replica,
     uint32_t reply_size);
@@ -107,6 +109,8 @@ public:
   int id() const;
   // Effects: Fetches the replier's identifier from the message.
 
+  kv::Version version() const;
+
   char* reply(int& len);
   // Effects: Returns a pointer to the reply and sets len to the
   // reply size.
@@ -122,6 +126,9 @@ public:
 
   bool is_tentative() const;
   // Effects: Returns true iff the reply is tentative.
+
+  Reply* prev;
+  Reply* next;
 
 private:
   Reply_rep& rep() const;
@@ -155,6 +162,11 @@ inline Seqno Reply::seqno() const
 inline int Reply::id() const
 {
   return rep().replica;
+}
+
+inline kv::Version Reply::version() const
+{
+  return rep().version;
 }
 
 inline char* Reply::reply(int& len)

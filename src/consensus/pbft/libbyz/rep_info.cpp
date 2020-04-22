@@ -28,9 +28,14 @@ Rep_info::Rep_info(char* m, int sz) : reps(Max_num_replicas)
 }
 
 char* Rep_info::new_reply(
-  int pid, Request_id rid, Seqno n, uint64_t nonce, uint32_t message_size)
+  int pid,
+  Request_id rid,
+  Seqno n,
+  kv::Version version,
+  uint64_t nonce,
+  uint32_t message_size)
 {
-  auto r = std::make_unique<Reply>(0, rid, n, nonce, 0, message_size);
+  auto r = std::make_unique<Reply>(0, rid, n, version, nonce, 0, message_size);
   PBFT_ASSERT(r != nullptr, "Out of memory");
   char* ret = r->contents() + sizeof(Reply_rep);
   {

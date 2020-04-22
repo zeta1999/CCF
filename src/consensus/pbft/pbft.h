@@ -466,7 +466,7 @@ namespace pbft
       LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
-          *message_receiver_base, 5000, 10000);
+          *message_receiver_base, pbft_config->get_receipts_ops(), 5000, 10000);
 
       auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =

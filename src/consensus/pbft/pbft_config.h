@@ -219,7 +219,7 @@ namespace pbft
       execution_ctx.version = rep.version;
 
       outb.contents = self->message_receive_base->create_response_message(
-        client, rid, rep.result.size(), execution_ctx.nonce);
+        client, rid, rep.version, rep.result.size(), execution_ctx.nonce);
 
       outb.size = rep.result.size();
       auto outb_ptr = (uint8_t*)outb.contents;

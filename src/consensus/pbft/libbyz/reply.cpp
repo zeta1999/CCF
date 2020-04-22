@@ -15,6 +15,7 @@ Reply::Reply(
   View view,
   Request_id req,
   Seqno n,
+  kv::Version version,
   uint64_t nonce,
   int replica,
   uint32_t reply_size) :
@@ -23,6 +24,7 @@ Reply::Reply(
   rep().v = view;
   rep().rid = req;
   rep().n = n;
+  rep().version = version;
   rep().nonce = nonce;
   rep().replica = replica;
   rep().reply_size = 0;

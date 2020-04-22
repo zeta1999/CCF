@@ -5,6 +5,7 @@
 #pragma once
 #include "ledger_writer.h"
 #include "message.h"
+#include "receipt_proof.h"
 #include "reply.h"
 #include "request.h"
 
@@ -34,6 +35,16 @@ public:
     int64_t version, pbft::RollbackInfo* rollback_info);
   virtual void register_rollback_cb(
     rollback_handler_cb cb, pbft::RollbackInfo* ctx) = 0;
+  typedef void (*batch_proof_handler_cb)(
+    Seqno seqno, std::unique_ptr<ReceiptProof> proof, void* batch_proof_info);
+  virtual void register_batch_proof_cb(
+    batch_proof_handler_cb cb, void* batch_proof_info) = 0;
+  typedef void (*comp_batch_exec_handler_cb)(
+    Seqno seqno,
+    std::map<kv::Version, std::vector<uint8_t>>&& map_version_receipt,
+    void* comp_batch_exec_info);
+  virtual void register_complete_batch_exec_cb(
+    comp_batch_exec_handler_cb cb, void* comp_batch_exec_info) = 0;
   virtual size_t num_correct_replicas() const = 0;
   virtual size_t f() const = 0;
   virtual void set_f(ccf::NodeId f) = 0;
@@ -48,6 +59,10 @@ public:
   virtual void playback_pre_prepare(ccf::Store::Tx& tx) = 0;
   virtual void playback_request(ccf::Store::Tx& tx) = 0;
   virtual char* create_response_message(
-    int client_id, Request_id rid, uint32_t size, uint64_t nonce) = 0;
+    int client_id,
+    Request_id rid,
+    kv::Version version,
+    uint32_t size,
+    uint64_t nonce) = 0;
   virtual bool IsExecutionPending() = 0;
 };

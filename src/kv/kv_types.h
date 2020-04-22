@@ -14,6 +14,8 @@
 #include <unordered_set>
 #include <vector>
 
+class ReceiptTreeSnapshot;
+
 namespace kv
 {
   // Version indexes modifications to the local kv store. Special value -1

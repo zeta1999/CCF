@@ -5,6 +5,7 @@
 #pragma once
 
 #include "certificate.h"
+#include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
@@ -32,6 +33,7 @@ class ClientProxy
 public:
   ClientProxy(
     IMessageReceiveBase& my_replica,
+    ReceiptOps* receipt_ops,
     int min_rtimeout = 2000,
     int max_rtimeout = 3000);
   // Effects: Creates a new ClientProxy object
@@ -97,6 +99,9 @@ private:
     RequestContext* prev;
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
+  std::map<Seqno, std::map<kv::Version, std::vector<uint8_t>>>
+    seqno_version_receipt;
+  std::map<Seqno, std::shared_ptr<ReceiptProof>> available_proof;
   std::atomic<uint64_t> current_outstanding = 0;
   std::atomic<uint64_t> milliseconds_since_start = 0;
   struct Statistics
@@ -118,8 +123,23 @@ private:
     T caller_rid;
     std::vector<uint8_t> data;
     ReplyCallback cb;
+    uint16_t reply_thread;
+    Seqno seqno;
+    kv::Version version;
+    std::vector<uint8_t> receipt;
+    std::shared_ptr<ReceiptProof> proof;
   };
+  void try_send_reply(Seqno seqno);
+  void capture_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
   static void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
+  void send_reply_to_issuing_thread(
+    std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
+
+  std::map<Seqno, std::list<std::unique_ptr<enclave::Tmsg<ReplyCbMsg>>>>
+    pending_replies;
+  Seqno max_proof_seqno = 0;
+  Seqno max_tree_seqno = 0;
+  const Seqno max_trailing_proof_or_tree = 2;
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -135,6 +155,8 @@ private:
   // Minimum retransmission timeout after retransmission
   // in msecs
   int min_rtimeout;
+
+  ReceiptOps* receipt_ops;
 
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
@@ -152,14 +174,26 @@ private:
   void retransmit();
   // Effects: Retransmits any outstanding request at the head of
   // the queue.
+
+  static void batch_proof_cb(
+    Seqno seqno, std::unique_ptr<ReceiptProof> proof, void* bp_info);
+
+  static void comp_batch_exec_cb(
+    Seqno seqno,
+    std::map<kv::Version, std::vector<uint8_t>>&& map_version_receipt,
+    void* cbe_info);
 };
 
 template <class T, class C>
 ClientProxy<T, C>::ClientProxy(
-  IMessageReceiveBase& my_replica, int min_rtimeout_, int max_rtimeout_) :
+  IMessageReceiveBase& my_replica,
+  ReceiptOps* receipt_ops_,
+  int min_rtimeout_,
+  int max_rtimeout_) :
   min_rtimeout(min_rtimeout_),
   max_rtimeout(max_rtimeout_),
   my_replica(my_replica),
+  receipt_ops(receipt_ops_),
   out_reqs(Max_outstanding),
   head(nullptr),
   tail(nullptr),
@@ -167,7 +201,10 @@ ClientProxy<T, C>::ClientProxy(
   rtimeout(max_rtimeout_),
   rtimer(new ITimer(max_rtimeout, rtimer_handler, this)),
   primary_only_execution(my_replica.f() == 0)
-{}
+{
+  my_replica.register_batch_proof_cb(batch_proof_cb, this);
+  my_replica.register_complete_batch_exec_cb(comp_batch_exec_cb, this);
+}
 
 template <class T, class C>
 ClientProxy<T, C>::RequestContext::RequestContext(
@@ -336,6 +373,9 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   current_statistics.time_spent.fetch_add(
     milliseconds_since_start - ctx->start_time);
   current_statistics.count_num_samples++;
+  {
+    seqno_version_receipt[reply->seqno()].insert({reply->version(), {}});
+  }
 
   LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
             << " seqno: " << reply->seqno() << " view " << reply->view()
@@ -392,17 +432,12 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   msg->data.owner = ctx->owner;
   msg->data.caller_rid = ctx->caller_rid;
   msg->data.cb = ctx->cb;
+  msg->data.reply_thread = ctx->reply_thread;
+  msg->data.seqno = reply->seqno();
+  msg->data.version = reply->version();
   msg->data.data.assign(reply_buffer, reply_buffer + reply_len);
 
-  if (enclave::ThreadMessaging::thread_count > 1)
-  {
-    enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
-      ctx->reply_thread, std::move(msg));
-  }
-  else
-  {
-    send_reply(std::move(msg));
-  }
+  capture_reply(std::move(msg));
 
   {
     std::lock_guard<SpinLock> mguard(lock);
@@ -439,6 +474,83 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
     {
       rtimer->start();
     }
+  }
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::send_reply_to_issuing_thread(
+  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+{
+  if (enclave::ThreadMessaging::thread_count > 1)
+  {
+    enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
+      msg->data.reply_thread, std::move(msg));
+  }
+  else
+  {
+    send_reply(std::move(msg));
+  }
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::try_send_reply(Seqno seqno)
+{
+  auto it = pending_replies.find(seqno);
+  if (it == pending_replies.end())
+  {
+    return;
+  }
+
+  auto& receipts = seqno_version_receipt[seqno];
+  auto& proof = available_proof[seqno];
+
+  auto& lst = it->second;
+  while (!lst.empty())
+  {
+    auto& current = lst.front();
+    auto it = receipts.find(current->data.version);
+    if (it != receipts.end())
+    {
+      current->data.receipt = std::move(it->second);
+      current->data.proof = proof;
+    }
+    send_reply_to_issuing_thread(std::move(current));
+    lst.pop_front();
+  }
+  seqno_version_receipt.erase(seqno);
+  pending_replies.erase(it);
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::capture_reply(
+  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+{
+  Seqno seqno = msg->data.seqno;
+
+  if (seqno <= max_proof_seqno)
+  {
+    auto& receipts = seqno_version_receipt[seqno];
+    auto it = receipts.find(msg->data.version);
+    if (it != receipts.end())
+    {
+      msg->data.receipt = std::move(it->second);
+      msg->data.proof = available_proof[seqno];
+    }
+    send_reply_to_issuing_thread(std::move(msg));
+    return;
+  }
+
+  auto it = pending_replies.find(seqno);
+  if (it == pending_replies.end())
+  {
+    std::list<std::unique_ptr<enclave::Tmsg<ReplyCbMsg>>> lst;
+    lst.push_front(std::move(msg));
+    pending_replies.insert({seqno, std::move(lst)});
+  }
+  else
+  {
+    auto& lst = it->second;
+    lst.push_back(std::move(msg));
   }
 }
 
@@ -527,6 +639,47 @@ void ClientProxy<T, C>::retransmit()
   }
 
   rtimer->restart();
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::batch_proof_cb(
+  Seqno seqno, std::unique_ptr<ReceiptProof> proof, void* bp_info)
+{
+  auto self = reinterpret_cast<ClientProxy<T, C>*>(bp_info);
+  self->available_proof.insert({seqno, std::move(proof)});
+  self->max_proof_seqno = std::max(self->max_proof_seqno, seqno);
+  self->try_send_reply(seqno);
+
+  if (self->max_proof_seqno > self->max_trailing_proof_or_tree)
+  {
+    Seqno removing_seqno =
+      self->max_proof_seqno - self->max_trailing_proof_or_tree;
+    self->try_send_reply(removing_seqno);
+    self->available_proof.erase(removing_seqno);
+    self->seqno_version_receipt.erase(removing_seqno);
+  }
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::comp_batch_exec_cb(
+  Seqno seqno,
+  std::map<kv::Version, std::vector<uint8_t>>&& map_version_receipt,
+  void* cbe_info)
+{
+  auto self = reinterpret_cast<ClientProxy<T, C>*>(cbe_info);
+
+  for (auto& it : map_version_receipt)
+  {
+    try
+    {
+      it.second = std::move(self->receipt_ops->get_receipt(it.first));
+    }
+    catch (std::exception& ex)
+    {
+      LOG_DEBUG_FMT("Could not get receipt for {}", it.first);
+    }
+  }
+  self->seqno_version_receipt[seqno] = std::move(map_version_receipt);
 }
 
 template <class T, class C>

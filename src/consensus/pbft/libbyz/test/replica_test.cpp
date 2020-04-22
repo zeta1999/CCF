@@ -207,7 +207,7 @@ ExecCommand exec_command =
       ccf::Store::Tx* tx = msg->tx;
 
       outb.contents =
-        message_receive_base->create_response_message(client, rid, 8, nonce);
+        message_receive_base->create_response_message(client, rid, 0, 8, nonce);
 
       Long& counter = *(Long*)service_mem;
       Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);

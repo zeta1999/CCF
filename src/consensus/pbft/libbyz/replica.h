@@ -19,7 +19,6 @@
 #include "partition.h"
 #include "prepared_cert.h"
 #include "receipt_proof.h"
-#include "receipts.h"
 #include "receive_message_base.h"
 #include "rep_info.h"
 #include "req_queue.h"
@@ -117,6 +116,12 @@ public:
   void register_rollback_cb(rollback_handler_cb cb, pbft::RollbackInfo* ctx);
   // Effects: Registers a handler that is called when we rollback
 
+  void register_batch_proof_cb(
+    batch_proof_handler_cb cb, void* batch_proof_info);
+
+  virtual void register_complete_batch_exec_cb(
+    comp_batch_exec_handler_cb cb, void* comp_batch_exec_info);
+
   template <typename T>
   std::unique_ptr<T> create_message(
     const uint8_t* message_data, size_t data_size);
@@ -133,7 +138,11 @@ public:
   Seqno get_last_executed() const;
   int my_id() const;
   char* create_response_message(
-    int client_id, Request_id rid, uint32_t size, uint64_t nonce);
+    int client_id,
+    Request_id rid,
+    kv::Version version,
+    uint32_t size,
+    uint64_t nonce);
 
   // variables used to keep track of versions so that we can tell the kv to
   // rollback
@@ -243,8 +252,6 @@ private:
   void handle(Reply_stable* m);
   void handle(New_principal* m);
   void handle(Network_open* m);
-  void handle(Receipts* m);
-  void handle(ReceiptProof* m);
   // Effects: Execute the protocol steps associated with the arrival
   // of the argument message.
 
@@ -302,9 +309,6 @@ private:
   void execute_prepared(bool committed = false);
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
-
-  void send_receipts(Seqno pp_seqno, kv::Version before, kv::Version end);
-  // Effects: serializes the merkle tree and then stores the resulting vector.
 
   struct ExecTentativeCbCtx
   {
@@ -528,6 +532,13 @@ private:
   // call back when we are rolling back
   // Used to rollback the kv to the right version and truncate the ledger
 
+  batch_proof_handler_cb batch_proof_cb = nullptr;
+  void* batch_proof_info;
+
+  comp_batch_exec_handler_cb comp_batch_exec_cb = nullptr;
+  void* comp_batch_exec_info;
+  std::map<kv::Version, std::vector<uint8_t>> map_version_receipt;
+
   std::unique_ptr<LedgerWriter> ledger_writer;
   std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
@@ -588,7 +599,7 @@ private:
                                             // take too long to execute
 #endif
 
-  std::map<kv::Version, int> version_to_client;
+  std::map<Seqno, std::unique_ptr<ReceiptProof>> receipt_proofs;
 
   //
   // Pointers to various functions.
@@ -601,7 +612,6 @@ private:
   //
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
-  std::map<Seqno, std::unique_ptr<ReceiptProof>> receipt_proofs;
 };
 
 inline int Replica::used_state_bytes() const

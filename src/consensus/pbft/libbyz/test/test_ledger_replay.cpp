@@ -61,7 +61,7 @@ public:
 
         outb.contents =
           pbft::GlobalState::get_replica().create_response_message(
-            client, rid, 0, nonce);
+            client, rid, 0, 0, nonce);
         outb.size = 0;
         auto request = reinterpret_cast<fake_req*>(inb->contents);
         info.ctx = request->ctx;

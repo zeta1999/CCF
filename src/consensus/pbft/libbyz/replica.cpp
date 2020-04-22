@@ -311,14 +311,6 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
       m = new Append_entries((uint32_t)alloc_size);
       break;
 
-    case Receipts_tag:
-      m = new Receipts((uint32_t)alloc_size);
-      break;
-
-    case Receipt_proof_tag:
-      m = new ReceiptProof((uint32_t)alloc_size);
-      break;
-
     default:
       // Unknown message type.
       auto err = fmt::format("Unknown message type:{}", Message::get_tag(data));
@@ -734,14 +726,6 @@ void Replica::process_message(Message* m)
       gen_handle<Network_open>(m);
       break;
 
-    case Receipts_tag:
-      gen_handle<Receipts>(m);
-      break;
-
-    case Receipt_proof_tag:
-      gen_handle<ReceiptProof>(m);
-      break;
-
     default:
       // Unknown message type.
       delete m;
@@ -793,12 +777,6 @@ bool Replica::pre_verify(Message* m)
 
     case New_view_tag:
       return gen_pre_verify<New_view>(m);
-
-    case Receipts_tag:
-      return gen_pre_verify<Receipts>(m);
-
-    case Receipt_proof_tag:
-      return gen_pre_verify<ReceiptProof>(m);
 
 #ifndef USE_PKEY_VIEW_CHANGES
     case View_change_ack_tag:
@@ -924,7 +902,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
     receipt_proofs.insert(
       {next_pp_seqno,
-       std::make_unique<ReceiptProof>(id(), next_pp_seqno, threshold)});
+       std::make_unique<ReceiptProof>(next_pp_seqno, threshold)});
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -968,10 +946,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       }
       else
       {
-        self->send_receipts(
-          pp->seqno(),
-          info.version_before_execution_start,
-          info.version_after_execution);
+        if (self->comp_batch_exec_cb != nullptr)
+        {
+          self->comp_batch_exec_cb(
+            pp->seqno(),
+            std::move(self->map_version_receipt),
+            self->comp_batch_exec_info);
+        }
+
         if (self->ledger_writer)
         {
           self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
@@ -1013,29 +995,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
              << ", btimer_state:" << btimer->get_state() << ", do_not_wait:"
              << (do_not_wait_for_batch_size ? "true" : "false") << std::endl;
     PBFT_ASSERT(false, "send_pre_prepare rqueue and btimer issue");
-  }
-}
-
-void Replica::send_receipts(Seqno pp_seqno, kv::Version before, kv::Version end)
-{
-  uint16_t target_threads = enclave::ThreadMessaging::thread_count;
-  uint32_t counter = 0;
-
-  for (uint32_t i = before; i <= end; ++i)
-  {
-    auto it = version_to_client.find(i);
-    if (it == version_to_client.end())
-    {
-      continue;
-    }
-    version_to_client.erase(it);
-    int to = it->second;
-
-    std::vector<uint8_t> receipt = receipt_ops->get_receipt(i);
-
-    Receipts rcpt(id(), to, pp_seqno, i, receipt.size(), receipt.data());
-
-    send(&rcpt, to);
   }
 }
 
@@ -1086,6 +1045,12 @@ void Replica::handle(Pre_prepare* m)
     LOG_TRACE_FMT("Reject pre prepare with seqno {}", m->seqno());
     delete m;
     return;
+  }
+
+  {
+    auto proof = std::make_unique<ReceiptProof>(m->seqno(), threshold);
+    proof->add_proof(m->id(), m->get_digest_sig());
+    receipt_proofs.insert({m->seqno(), std::move(proof)});
   }
 
   const Seqno ms = m->seqno();
@@ -1184,11 +1149,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
 
-        if (self->ledger_writer && !self->is_primary())
-        {
-          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
-        }
-
         Prepared_cert& pc = self->plog.fetch(msg->seqno);
         pc.add_mine(p);
         LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
@@ -1202,6 +1162,19 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
         self->is_exec_pending = false;
         self->send_prepare(msg->seqno + 1, msg->orig_byzinfo);
+
+        if (self->comp_batch_exec_cb != nullptr)
+        {
+          self->comp_batch_exec_cb(
+            pp->seqno(),
+            std::move(self->map_version_receipt),
+            self->comp_batch_exec_info);
+        }
+
+        if (self->ledger_writer && !self->is_primary())
+        {
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        }
       };
 
       auto msg = std::make_unique<ExecTentativeCbCtx>();
@@ -1244,8 +1217,10 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   auto it = receipt_proofs.find(s);
   if (it != receipt_proofs.end())
   {
-    send(it->second.get(), All_replicas);
-    handle(it->second.release());
+    if (batch_proof_cb != nullptr)
+    {
+      batch_proof_cb(s, std::move(it->second), batch_proof_info);
+    }
     receipt_proofs.erase(it);
   }
 
@@ -1463,6 +1438,19 @@ void Replica::register_rollback_cb(
   rollback_info = rb_info;
 }
 
+void Replica::register_batch_proof_cb(batch_proof_handler_cb cb, void* bp_info)
+{
+  batch_proof_cb = cb;
+  batch_proof_info = bp_info;
+}
+
+void Replica::register_complete_batch_exec_cb(
+  comp_batch_exec_handler_cb cb, void* cbe_info)
+{
+  comp_batch_exec_cb = cb;
+  comp_batch_exec_info = cbe_info;
+}
+
 template <class T>
 std::unique_ptr<T> Replica::create_message(
   const uint8_t* message_data, size_t data_size)
@@ -1550,10 +1538,14 @@ int Replica::my_id() const
 }
 
 char* Replica::create_response_message(
-  int client_id, Request_id request_id, uint32_t size, uint64_t nonce)
+  int client_id,
+  Request_id request_id,
+  kv::Version version,
+  uint32_t size,
+  uint64_t nonce)
 {
   return replies.new_reply(
-    client_id, request_id, last_tentative_execute, nonce, size);
+    client_id, request_id, last_tentative_execute, version, nonce, size);
 }
 
 void Replica::handle(Status* m)
@@ -2062,18 +2054,6 @@ void Replica::handle(Network_open* m)
   delete m;
 }
 
-void Replica::handle(Receipts* m)
-{
-  // For now we are not doing anything with the receipts but we probably should.
-  delete m;
-}
-
-void Replica::handle(ReceiptProof* m)
-{
-  // For now we are not doing anything with the receipts but we probably should.
-  delete m;
-}
-
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 {
   PBFT_ASSERT(ms >= 0 && ms <= min, "Invalid state");
@@ -2413,10 +2393,13 @@ void Replica::execute_tentative_request_end(
 
   info.ctx = msg.max_local_commit_value;
 
-  self.version_to_client.insert({info.ctx, msg.client});
-
   self.replies.end_reply(
     msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
+
+  if (msg.client == self.id() && info.ctx >= 0)
+  {
+    self.map_version_receipt.insert({info.ctx, {}});
+  }
 }
 
 bool Replica::create_execute_commands(
