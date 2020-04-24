@@ -900,10 +900,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     Pre_prepare* pp = new Pre_prepare(
       view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ctx->nonce, ps);
 
-    receipt_proofs.insert(
-      {next_pp_seqno,
-       std::make_unique<ReceiptProof>(next_pp_seqno, threshold)});
-
     auto fn = [](
                 Pre_prepare* pp,
                 Replica* self,
@@ -930,11 +926,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         self->send(pp, All_replicas);
       }
 
-      auto it = self->receipt_proofs.find(pp->seqno());
-      if (it != self->receipt_proofs.end())
-      {
-        it->second->add_proof(self->id(), pp->get_digest_sig());
-      }
+      self->add_proof(pp->seqno(), self->id(), pp->get_digest_sig());
 
       if (pbft::GlobalState::get_node().f() == 0)
       {
@@ -1047,18 +1039,14 @@ void Replica::handle(Pre_prepare* m)
     return;
   }
 
-  {
-    auto proof = std::make_unique<ReceiptProof>(m->seqno(), threshold);
-    proof->add_proof(m->id(), m->get_digest_sig());
-    receipt_proofs.insert({m->seqno(), std::move(proof)});
-  }
-
   const Seqno ms = m->seqno();
 
   LOG_TRACE << "Received pre prepare with seqno: " << ms
             << ", in_wv:" << (in_wv(m) ? "true" : "false")
             << ", low_bound:" << low_bound << ", has complete_new_view:"
             << (has_complete_new_view() ? "true" : "false") << std::endl;
+
+  add_proof(ms, m->id(), m->get_digest_sig());
 
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
@@ -1148,6 +1136,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         int send_node_id =
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
+
+        self->add_proof(p->seqno(), self->node_id, p->digest_sig());
 
         Prepared_cert& pc = self->plog.fetch(msg->seqno);
         pc.add_mine(p);
@@ -1260,11 +1250,7 @@ void Replica::handle(Prepare* m)
     in_wv(m) && ms > low_bound && primary() != m->id() &&
     has_complete_new_view())
   {
-    auto it = receipt_proofs.find(ms);
-    if (it != receipt_proofs.end())
-    {
-      it->second->add_proof(m->id(), m->digest_sig());
-    }
+    add_proof(ms, m->id(), m->digest_sig());
 
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
@@ -3395,6 +3381,24 @@ void Replica::try_end_recovery()
 
     recovering = false;
   }
+}
+
+void Replica::add_proof(Seqno seqno, int id, PbftSignature& sig)
+{
+  ReceiptProof* proofs;
+  auto it = receipt_proofs.find(seqno);
+
+  if (it == receipt_proofs.end())
+  {
+    auto tmp = std::make_unique<ReceiptProof>(seqno, threshold);
+    proofs = tmp.get();
+    receipt_proofs.insert({seqno, std::move(tmp)});
+  }
+  else
+  {
+    proofs = it->second.get();
+  }
+  proofs->add_proof(id, sig);
 }
 
 int Replica::min_pre_prepare_batch_size =

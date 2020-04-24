@@ -392,6 +392,8 @@ private:
   // Effects: Returns non-zero iff there is a pre-prepare pp that committed for
   // sequence number "s" (in this case it returns pp).
 
+  void add_proof(Seqno seqno, int id, PbftSignature& sig);
+
   bool has_complete_new_view() const;
   // Effects: Returns true iff the replica has complete new-view
   // information for the current view.

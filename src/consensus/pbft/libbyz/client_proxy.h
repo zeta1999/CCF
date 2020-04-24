@@ -351,6 +351,22 @@ template <class T, class C>
 void ClientProxy<T, C>::send_reply(
   std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
 {
+  bool have_proof = msg->data.proof != nullptr;
+
+  std::vector<uint8_t> result(
+    msg->data.data.size() + msg->data.receipt.size() +
+    (have_proof ? msg->data.proof->get_size_of_proofs() : 0));
+  std::copy(msg->data.data.begin(), msg->data.data.end(), result.begin());
+  std::copy(
+    msg->data.receipt.begin(),
+    msg->data.receipt.end(),
+    result.data() + msg->data.data.size());
+  if (have_proof)
+  {
+    msg->data.proof->copy_out_proofs(
+      result.data() + msg->data.data.size() + msg->data.receipt.size());
+  }
+
   msg->data.cb(msg->data.owner, msg->data.caller_rid, 0, msg->data.data);
 }
 

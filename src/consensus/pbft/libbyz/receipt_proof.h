@@ -21,6 +21,12 @@ public:
 
   void add_proof(uint8_t id, PbftSignature& sig);
 
+  size_t get_size_of_proofs() const;
+
+  void copy_out_proofs(uint8_t* dest) const;
+
+  size_t count() const;
+
 private:
   uint8_t num_sigs; // size of the buffer that follows the receipts
   Seqno seqno; // seqno of this receipt proof message
