@@ -107,5 +107,6 @@ namespace enclave
     virtual bool should_apply_writes() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
+    virtual uint64_t get_response_body_hash() const = 0;
   };
 }

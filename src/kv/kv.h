@@ -1079,7 +1079,7 @@ namespace kv
      *
      * @return transaction outcome
      */
-    CommitSuccess commit()
+    CommitSuccess commit(uint64_t response_hash = 0)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -1130,7 +1130,10 @@ namespace kv
           }
 
           return store->commit(
-            version, MovePendingTx(std::move(data), std::move(req_id)), false);
+            version,
+            MovePendingTx(std::move(data), std::move(req_id)),
+            false,
+            response_hash);
         }
         catch (const std::exception& e)
         {
@@ -1811,7 +1814,10 @@ namespace kv
     }
 
     CommitSuccess commit(
-      Version version, PendingTx pending_tx, bool globally_committable) override
+      Version version,
+      PendingTx pending_tx,
+      bool globally_committable,
+      uint64_t response_hash = 0) override
     {
       auto r = get_consensus();
       if (!r)
@@ -1859,7 +1865,26 @@ namespace kv
 
           if (h)
           {
-            h->add_pending(reqid, version, data_shared);
+            if (c != nullptr && c->type() == ConsensusType::PBFT)
+            {
+              std::vector<uint8_t> merkle_data;
+              merkle_data.resize(data_shared->size() + sizeof(uint64_t));
+              std::copy(
+                data_shared->begin(), data_shared->end(), merkle_data.begin());
+
+              uint8_t* data = merkle_data.data();
+              data = data + data_shared->size();
+              *(uint64_t*)data = response_hash;
+
+              h->add_pending(
+                reqid,
+                version,
+                std::make_shared<std::vector<uint8_t>>(std::move(merkle_data)));
+            }
+            else
+            {
+              h->add_pending(reqid, version, data_shared);
+            }
           }
 
           LOG_DEBUG_FMT(

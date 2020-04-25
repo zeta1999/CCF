@@ -22,9 +22,6 @@ namespace pbft
 
   class PbftConfigCcf : public AbstractPbftConfig, public ReceiptOps
   {
-    static constexpr uint32_t max_update_merkle_tree_interval = 50;
-    static constexpr uint32_t min_update_merkle_tree_interval = 10;
-
   public:
     PbftConfigCcf(
       std::shared_ptr<enclave::RPCMap> rpc_map_,
@@ -110,22 +107,14 @@ namespace pbft
 
       --info.pending_cmd_callbacks;
 
-      if (
-        info.pending_cmd_callbacks %
-            PbftConfigCcf::max_update_merkle_tree_interval ==
-          0 ||
-        info.pending_cmd_callbacks <
-          PbftConfigCcf::min_update_merkle_tree_interval)
+      try
       {
-        try
-        {
-          frontend->update_merkle_tree();
-        }
-        catch (const std::exception& e)
-        {
-          LOG_TRACE_FMT("Failed to insert into merkle tree", e.what());
-          abort();
-        }
+        frontend->update_merkle_tree();
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("Failed to insert into merkle tree", e.what());
+        abort();
       }
 
       if (info.pending_cmd_callbacks == 0)

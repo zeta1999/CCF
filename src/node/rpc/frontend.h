@@ -359,8 +359,8 @@ namespace ccf
           {
             return ctx->serialise_response();
           }
-
-          switch (tx.commit())
+          uint64_t hash = ctx->get_response_body_hash();
+          switch (tx.commit(hash))
           {
             case kv::CommitSuccess::OK:
             {

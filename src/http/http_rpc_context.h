@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/libbyz/digest.h"
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
@@ -238,6 +239,15 @@ namespace http
     virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
       response_body = body;
+    }
+
+    virtual uint64_t get_response_body_hash() const override
+    {
+      Digest d;
+      Digest::Context context;
+      d.update_last(context, (char*)response_body.data(), response_body.size());
+      d.finalize(context);
+      return d.hash();
     }
 
     virtual void set_response_body(std::vector<uint8_t>&& body) override
