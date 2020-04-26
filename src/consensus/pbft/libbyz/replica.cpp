@@ -925,6 +925,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       {
         self->send(pp, All_replicas);
       }
+      self->send_responses(pp);
 
       self->add_proof(pp->seqno(), self->id(), pp->get_digest_sig());
 
@@ -1165,6 +1166,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         {
           self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
         }
+        self->send_responses(pp);
       };
 
       auto msg = std::make_unique<ExecTentativeCbCtx>();
@@ -2241,15 +2243,8 @@ void Replica::global_commit(Pre_prepare* pp)
   }
 }
 
-void Replica::execute_prepared(bool committed)
+void Replica::send_responses(Pre_prepare* pp)
 {
-  if (committed)
-  {
-    return;
-  }
-
-  Pre_prepare* pp = prepared_pre_prepare(last_executed + 1);
-
   if (pp && pp->view() == view())
   {
     // Iterate over the requests in the message, sending replies
@@ -2263,14 +2258,13 @@ void Replica::execute_prepared(bool committed)
       Request_id rid = request.request_id();
 
       Reply* reply = replies.reply(client_id, rid, last_executed + 1);
-      bool reply_is_committed = false;
       if (reply == nullptr)
       {
         continue;
       }
       // int reply_size = reply->size();
 
-      if (reply->request_id() == rid && reply_is_committed == committed)
+      if (reply->request_id() == rid)
       {
 #ifdef USE_DIGEST_REPLIES_OPTIMIZATION
         if (
@@ -2285,7 +2279,7 @@ void Replica::execute_prepared(bool committed)
             node_id,
             reply->digest(),
             get_principal(client_id),
-            !committed);
+            false);
 
           send(&empty, client_id);
         }
@@ -2297,6 +2291,20 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
+  }
+}
+
+void Replica::execute_prepared(bool committed)
+{
+  if (committed)
+  {
+    return;
+  }
+
+  Pre_prepare* pp = prepared_pre_prepare(last_executed + 1);
+
+  if (pp && pp->view() == view())
+  {
     if (f() == 0)
     {
       global_commit(pp);

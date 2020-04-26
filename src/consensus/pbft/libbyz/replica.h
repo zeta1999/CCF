@@ -310,6 +310,8 @@ private:
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
 
+  void send_responses(Pre_prepare* pp);
+
   struct ExecTentativeCbCtx
   {
     ByzInfo info;
