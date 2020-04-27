@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ds/champ_map.h"
-#include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
