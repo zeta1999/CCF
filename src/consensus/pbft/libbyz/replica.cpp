@@ -30,7 +30,6 @@
 #include "reply.h"
 #include "reply_stable.h"
 #include "request.h"
-#include "statistics.h"
 #include "status.h"
 #include "view_change.h"
 #include "view_change_ack.h"
@@ -43,7 +42,6 @@ void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
   if (diff_time(cur, tsent) > 10000)
   {
     // Retransmit message
-    INCR_OP(message_counts_retransmitted[m->tag()]);
     send(m, p->pid());
   }
 }
@@ -1691,7 +1689,6 @@ void Replica::handle(Status* m)
                     "Retransmitting request with id {} and cid {}",
                     r->request_id(),
                     r->client_id());
-                  INCR_OP(message_counts_retransmitted[m->tag()]);
                   send(r, m->id());
                   count += r->size();
                 }
@@ -2576,7 +2573,6 @@ void Replica::execute_committed(bool was_f_0)
         execute_prepared(true);
         global_commit(pp);
         last_executed = last_executed + 1;
-        stats.last_executed = last_executed;
         PBFT_ASSERT(pp->seqno() == last_executed, "Invalid execution");
 
 #ifdef DEBUG_SLOW
@@ -2731,7 +2727,6 @@ void Replica::new_state(Seqno c)
   if (c > last_executed)
   {
     last_executed = last_tentative_execute = c;
-    stats.last_executed = last_executed;
 
     rqueue.clear();
 
@@ -2829,7 +2824,6 @@ void Replica::mark_stable(Seqno n, bool have_state)
               << std::endl;
     PBFT_ASSERT(last_tentative_execute < last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
-    stats.last_executed = last_executed;
 
     if (last_stable > last_prepared)
     {
@@ -3113,7 +3107,6 @@ void Replica::handle(Reply_stable* m)
       recovery_point = se.estimate() + max_out;
 
       enforce_bound(recovery_point);
-      STOP_CC(est_time);
 
       LOG_INFO << "sending recovery request" << std::endl;
       // Send recovery request.
@@ -3264,7 +3257,6 @@ void Replica::btimer_handler(void* owner)
     pbft::GlobalState::get_replica().primary() ==
     pbft::GlobalState::get_replica().node_id)
   {
-    ++stats.count_pre_prepare_batch_timer;
     pbft::GlobalState::get_replica().send_pre_prepare(true);
   }
 }
@@ -3292,7 +3284,6 @@ void Replica::rec_timer_handler(void* owner)
 
     if (pbft::GlobalState::get_replica().recovering)
     {
-      INCR_OP(incomplete_recs);
       LOG_INFO << "* Starting recovery" << std::endl;
     }
 
@@ -3302,13 +3293,6 @@ void Replica::rec_timer_handler(void* owner)
     pbft::GlobalState::get_replica().state.simulate_reboot();
 
     pbft::GlobalState::get_replica().recover();
-  }
-  else
-  {
-    if (pbft::GlobalState::get_replica().recovering)
-    {
-      INCR_OP(rec_overlaps);
-    }
   }
 
 #endif
@@ -3384,8 +3368,6 @@ void Replica::try_end_recovery()
     rr_reps.is_complete())
   {
     // Done with recovery.
-    END_REC_STATS();
-
     recovering = false;
   }
 }

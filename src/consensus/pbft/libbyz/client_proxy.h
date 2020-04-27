@@ -610,7 +610,6 @@ void ClientProxy<T, C>::retransmit()
     Request* out_req = ctx->req.get();
 
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
-    INCR_OP(req_retrans);
 
     ctx->t_reps.clear();
     ctx->c_reps.clear();

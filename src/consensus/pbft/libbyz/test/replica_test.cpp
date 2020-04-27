@@ -30,7 +30,6 @@ extern "C"
 #include "pbft_assert.h"
 #include "replica.h"
 #include "stacktrace_utils.h"
-#include "statistics.h"
 #include "test_message.h"
 #include "timer.h"
 
