@@ -13,8 +13,7 @@
 #include <string.h>
 
 Rep_info::Rep_info() : reps(Max_requests_in_batch * Replica::congestion_window)
-{
-}
+{}
 
 char* Rep_info::new_reply(
   int pid,

@@ -61,7 +61,6 @@ public:
   // Effects: logs state for debugging
 
 private:
-
   struct Key
   {
     size_t cid;
