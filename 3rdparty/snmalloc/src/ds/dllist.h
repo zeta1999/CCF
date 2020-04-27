@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <stdexcept>
 
 namespace snmalloc
 {
@@ -66,6 +67,7 @@ namespace snmalloc
 
     T* head = Terminator();
     T* tail = Terminator();
+    uint64_t size_ = 0;
 
   public:
     ~DLList()
@@ -82,6 +84,17 @@ namespace snmalloc
 
       o.head = nullptr;
       o.tail = nullptr;
+    }
+
+    void check_size() {
+      if (size_ > 10000)
+      {
+        //throw std::logic_error("AAAA"); 
+      }
+    }
+
+    size_t size(){
+      return size_;
     }
 
     DLList& operator=(DLList&& o) noexcept
@@ -131,6 +144,8 @@ namespace snmalloc
 
     void insert(T* item)
     {
+      ++size_;
+      check_size();
 #ifndef NDEBUG
       debug_check_not_contains(item);
 #endif
@@ -151,6 +166,8 @@ namespace snmalloc
 
     void insert_back(T* item)
     {
+      ++size_;
+      check_size();
 #ifndef NDEBUG
       debug_check_not_contains(item);
 #endif
@@ -171,6 +188,8 @@ namespace snmalloc
 
     void remove(T* item)
     {
+      --size_;
+      check_size();
 #ifndef NDEBUG
       debug_check_contains(item);
 #endif

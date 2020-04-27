@@ -89,8 +89,8 @@ private:
     for (decltype(options.num_transactions) i = 0; i < options.num_transactions;
          i++)
     {
-      uint8_t operation =
-        rand_range((uint8_t)TransactionTypes::NumberTransactions);
+      uint8_t operation = 0;
+        //rand_range((uint8_t)TransactionTypes::NumberTransactions);
 
       std::unique_ptr<flatbuffers::DetachedBuffer> fb;
 
