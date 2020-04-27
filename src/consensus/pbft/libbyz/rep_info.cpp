@@ -13,18 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-Rep_info::Rep_info(char* m, int sz) : reps(Max_num_replicas)
+Rep_info::Rep_info() : reps(Max_requests_in_batch * Replica::congestion_window)
 {
-  mem = m;
-
-  if (sz < size())
-  {
-    PBFT_FAIL("Memory is too small to hold replies");
-  }
-
-  // Initialize memory.
-  bzero(mem, size());
-  total_processed = (Seqno*)mem;
 }
 
 char* Rep_info::new_reply(
@@ -49,11 +39,6 @@ char* Rep_info::new_reply(
   }
 
   return nullptr;
-}
-
-int Rep_info::new_reply_size() const
-{
-  return Max_rep_size - sizeof(Reply_rep) - MAC_size;
 }
 
 void Rep_info::end_reply(int pid, Request_id rid, Seqno n, int size)

@@ -53,7 +53,6 @@ public:
         Request_id rid = msg->rid;
         uint8_t* req_start = msg->req_start;
         size_t req_size = msg->req_size;
-        Seqno total_requests_executed = msg->total_requests_executed;
         ccf::Store::Tx* tx = msg->tx;
 
         // increase total number of commands executed to compare with fake_req

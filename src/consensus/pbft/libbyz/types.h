@@ -73,7 +73,6 @@ struct ExecCommandMsg
     uint8_t* req_start_,
     size_t req_size_,
     bool include_merkle_roots_,
-    Seqno total_requests_executed_,
     Seqno last_tentative_execute_,
     int64_t& max_local_commit_value_,
     int replier_,
@@ -87,7 +86,6 @@ struct ExecCommandMsg
     req_start(req_start_),
     req_size(req_size_),
     include_merkle_roots(include_merkle_roots_),
-    total_requests_executed(total_requests_executed_),
     last_tentative_execute(last_tentative_execute_),
     max_local_commit_value(max_local_commit_value_),
     replier(replier_),
@@ -103,7 +101,6 @@ struct ExecCommandMsg
   uint8_t* req_start;
   size_t req_size;
   bool include_merkle_roots;
-  Seqno total_requests_executed;
   int reply_thread;
   ccf::Store::Tx* tx;
 

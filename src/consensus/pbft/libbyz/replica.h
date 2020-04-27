@@ -76,10 +76,6 @@ public:
   // Effects: Registers "e" as the exec_command function and r for
   // and receipt based operations.
 
-  int used_state_bytes() const;
-  // Effects: Returns the number of bytes used up to store protocol
-  // information.
-
   void modify(void* mem, int size);
   // Effects: Informs the system that the memory region that starts at
   // "mem" and has length "size" bytes is about to be modified.
@@ -160,6 +156,8 @@ public:
 
   Seqno signature_offset = 0;
   std::atomic<kv::Version> signed_version = 0;
+
+  static constexpr auto congestion_window = 1;
 
   Seqno next_expected_sig_offset()
   {
@@ -452,7 +450,6 @@ private:
   // congestion window > 1, setting min_min_pre_prepare_batch_size to
   // Max_requests_in_batch and waiting for max_pre_prepare_request_batch_wait_ms
   // before sending each pre-prepare works better.
-  static constexpr auto congestion_window = 1;
   static int min_pre_prepare_batch_size;
   static constexpr auto min_min_pre_prepare_batch_size = 1;
   static constexpr auto num_look_back_to_set_batch_size = 10;
@@ -617,11 +614,6 @@ private:
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
 };
-
-inline int Replica::used_state_bytes() const
-{
-  return replies.size();
-}
 
 inline void Replica::modify(void* mem, int size)
 {

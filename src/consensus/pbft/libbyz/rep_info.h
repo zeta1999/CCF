@@ -24,18 +24,10 @@ class Rep_info
   // Holds replies to requests until they prepare.
   //
 public:
-  Rep_info(char* mem, int sz);
+  Rep_info();
   // Requires: "mem" points to an array of "size" bytes and is virtual
   // memory page aligned.
   // Effects: Creates a new object that stores data in "mem"
-
-  int size() const;
-  // Effects: Returns the actual number of bytes (a multiple of the
-  // Block_size) that was consumed by this from the
-  // start of the "mem" argument supplied to the constructor.
-
-  Seqno total_requests_processed() const;
-  // Returns the number of individual requests processed by the replica
 
   char* new_reply(
     int pid,
@@ -46,11 +38,7 @@ public:
     uint32_t message_size);
   // Effects: Allocates a new reply for request rid from
   // principal pid executed at sequence number n and returns a buffer
-  // to store the reply to the command. The buffer can store up to
-  // new_reply_size() bytes
-
-  int new_reply_size() const;
-  // Returns the size of the reply buffer size
+  // to store the reply to the command.
 
   void end_reply(int pid, Request_id rid, Seqno n, int size);
   // Effects: Completes the construction of a new reply value: this is
@@ -73,10 +61,6 @@ public:
   // Effects: logs state for debugging
 
 private:
-  char* mem;
-  // total requests processed since replica started running
-  Seqno* total_processed;
-  static constexpr int Max_rep_size = 8192;
 
   struct Key
   {
@@ -99,14 +83,3 @@ private:
   std::unordered_map<Key, std::unique_ptr<Reply>, KeyHash> reps;
   SpinLock lock;
 };
-
-inline Seqno Rep_info::total_requests_processed() const
-{
-  return *total_processed;
-}
-
-inline int Rep_info::size() const
-{
-  static_assert(sizeof(*total_processed) < Block_size, "Invalid size");
-  return Block_size;
-}

@@ -83,9 +83,8 @@ int Byz_init_replica(
   pbft::GlobalState::get_replica().register_exec(exec, receipt_ops);
   pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
-  auto used_bytes = pbft::GlobalState::get_replica().used_state_bytes();
   stats.zero_stats();
-  return used_bytes;
+  return 0;
 }
 
 void Byz_modify(void* mem, int size)
