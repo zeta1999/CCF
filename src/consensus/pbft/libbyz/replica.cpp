@@ -1132,6 +1132,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
           msg->nonce,
           nullptr,
           pp->is_signed());
+        p->save_signature(msg->signature, msg->signature_size);
         int send_node_id =
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
@@ -1172,16 +1173,32 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       msg->send_only_to_self = send_only_to_self;
       msg->orig_byzinfo = byz_info;
       msg->nonce = entropy->random64();
+
+      Digest dh;
+      Digest::Context context;
+      dh.update_last(context, (char*)&msg->nonce, sizeof(uint64_t));
+      dh.finalize(context);
+      msg->hashed_nonce = dh.hash();
+
       if (byz_info.has_value())
       {
         msg->info = byz_info.value();
+        msg->signature_size =
+          Prepare::Sign(msg->signature, id(), msg->hashed_nonce, pp->digest());
         fn(pp, this, std::move(msg));
       }
       else
       {
+        PbftSignature& sig = msg->signature;
+        size_t& sig_size = msg->signature_size;
+        uint64_t hashed_nonce = msg->hashed_nonce;
         if (!execute_tentative(pp, fn, std::move(msg)))
         {
           try_send_prepare();
+        }
+        else
+        {
+          sig_size = Prepare::Sign(sig, id(), hashed_nonce, pp->digest());
         }
       }
       return;

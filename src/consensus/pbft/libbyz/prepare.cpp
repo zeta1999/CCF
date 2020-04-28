@@ -11,11 +11,32 @@
 #include "principal.h"
 #include "replica.h"
 
+uint64_t get_nonce_hash(uint64_t nonce)
+{
+  Digest dh;
+  Digest::Context context;
+  dh.update_last(context, (char*)&nonce, sizeof(uint64_t));
+  dh.finalize(context);
+  return dh.hash();
+}
+
 Prepare::Prepare(
   View v,
   Seqno s,
-  Digest& d,
+  Digest& pp_d,
   uint64_t nonce_,
+  Principal* dst,
+  bool is_signed,
+  int id) :
+  Prepare(v, s, pp_d, nonce_, get_nonce_hash(nonce_), dst, is_signed, id)
+{}
+
+Prepare::Prepare(
+  View v,
+  Seqno s,
+  Digest& pp_d,
+  uint64_t nonce_,
+  uint64_t hashed_nonce_,
   Principal* dst,
   bool is_signed,
   int id) :
@@ -32,30 +53,17 @@ Prepare::Prepare(
   rep().extra = (dst) ? 1 : 0;
   rep().view = v;
   rep().seqno = s;
-  rep().digest = d;
+  rep().digest = pp_d;
 
   if (id < 0)
   {
     rep().id = pbft::GlobalState::get_node().id();
   }
 
-  Digest dh;
-  Digest::Context context;
-  dh.update_last(context, (char*)&nonce, sizeof(uint64_t));
-  dh.finalize(context);
-  rep().hashed_nonce = dh;
+  rep().hashed_nonce = hashed_nonce_;
 
 #ifdef SIGN_BATCH
-  rep().digest_sig_size = 0;
-  rep().digest_padding.fill(0);
-  if (is_signed)
-  {
-    signature s(d, rep().id, rep().hashed_nonce);
-
-    rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
-      reinterpret_cast<char*>(&s), sizeof(s), rep().batch_digest_signature);
-  }
-  else
+  if (!is_signed)
   {
     rep().batch_digest_signature.fill(0);
   }
@@ -163,4 +171,19 @@ bool Prepare::pre_verify()
 
   assert(false);
   return false;
+}
+
+size_t Prepare::Sign(
+  PbftSignature& result, NodeId id, uint64_t hashed_nonce, const Digest& pp_d)
+{
+  signature s(pp_d, id, hashed_nonce);
+
+  return pbft::GlobalState::get_node().gen_signature(
+    reinterpret_cast<char*>(&s), sizeof(s), result);
+}
+
+void Prepare::save_signature(PbftSignature& signature, size_t signature_size)
+{
+  rep().digest_sig_size = signature_size;
+  rep().batch_digest_signature = signature;
 }

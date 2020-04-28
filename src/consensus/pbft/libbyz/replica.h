@@ -318,6 +318,9 @@ private:
     bool send_only_to_self = false;
     std::optional<ByzInfo> orig_byzinfo;
     uint64_t nonce;
+    uint64_t hashed_nonce;
+    PbftSignature signature;
+    size_t signature_size;
   };
 
   struct ExecuteTentativeCbMsg

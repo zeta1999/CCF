@@ -24,7 +24,7 @@ struct Prepare_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
-  Digest hashed_nonce;
+  uint64_t hashed_nonce;
 #ifdef SIGN_BATCH
   size_t digest_sig_size;
   PbftSignature batch_digest_signature;
@@ -57,8 +57,18 @@ public:
   Prepare(
     View v,
     Seqno s,
-    Digest& d,
+    Digest& pp_d,
     uint64_t nonce,
+    Principal* dst = 0,
+    bool is_signed = false,
+    int id = -1);
+
+  Prepare(
+    View v,
+    Seqno s,
+    Digest& pp_d,
+    uint64_t nonce,
+    uint64_t hashed_nonce,
     Principal* dst = 0,
     bool is_signed = false,
     int id = -1);
@@ -70,6 +80,8 @@ public:
   // set using pbft::GlobalState::get_node().id(). If it is set (i.e. > -1) then
   // the Prepare is created by a late joiner replica during playback and the
   // prepare corresponds to the replica who's id is being set
+
+  void save_signature(PbftSignature& signature, size_t signature_size);
 
   void re_authenticate(Principal* p = 0);
   // Effects: Recomputes the authenticator in the message using the
@@ -110,10 +122,20 @@ public:
     uint32_t magic = 0xba5eba11;
     NodeId id;
     Digest d;
-    Digest n;
+    uint64_t hashed_nonce;
 
-    signature(Digest d_, NodeId id_, Digest nonce) : d(d_), id(id_), n(nonce) {}
+    signature(const Digest& d_, NodeId id_, uint64_t nonce) :
+      d(d_),
+      id(id_),
+      hashed_nonce(nonce)
+    {}
   };
+
+  static size_t Sign(
+    PbftSignature& result,
+    NodeId id,
+    uint64_t hashed_nonce,
+    const Digest& pp_d);
 
 private:
   uint64_t nonce;
