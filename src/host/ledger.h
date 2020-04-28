@@ -27,13 +27,16 @@ namespace asynchost
     std::vector<size_t> positions;
     size_t total_len;
     ringbuffer::WriterPtr to_enclave;
+    bool is_raft;
 
   public:
     Ledger(
+      bool is_raft_,
       const std::string& filename,
       ringbuffer::AbstractWriterFactory& writer_factory) :
       file(NULL),
-      to_enclave(writer_factory.create_writer_to_inside())
+      to_enclave(writer_factory.create_writer_to_inside()),
+      is_raft(is_raft_)
     {
       file = fopen(filename.c_str(), "r+b");
 
@@ -150,7 +153,10 @@ namespace asynchost
     void write_entry(const uint8_t* data, size_t size)
     {
       fseeko(file, total_len, SEEK_SET);
-      positions.push_back(total_len);
+      if (positions.size() < 1000 || is_raft)
+      {
+        positions.push_back(total_len);
+      }
 
       LOG_DEBUG_FMT("Ledger write {}: {} bytes", positions.size(), size);
 

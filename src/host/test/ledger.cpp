@@ -14,14 +14,14 @@ TEST_CASE("Read/Write test")
   const std::vector<uint8_t> e1 = {1, 2, 3};
   const std::vector<uint8_t> e2 = {5, 5, 6, 7};
   {
-    asynchost::Ledger l("testlog", wf);
+    asynchost::Ledger l(true, "testlog", wf);
     l.truncate(0);
     REQUIRE(l.get_last_idx() == 0);
     l.write_entry(e1.data(), e1.size());
     l.write_entry(e2.data(), e2.size());
   }
 
-  asynchost::Ledger l("testlog", wf);
+  asynchost::Ledger l(true, "testlog", wf);
   REQUIRE(l.get_last_idx() == 2);
   auto r1 = l.read_entry(1);
   REQUIRE(e1 == r1);
@@ -37,7 +37,7 @@ TEST_CASE("Entry sizes")
   const std::vector<uint8_t> e1 = {1, 2, 3};
   const std::vector<uint8_t> e2 = {5, 5, 6, 7};
 
-  asynchost::Ledger l("testlog", wf);
+  asynchost::Ledger l(true, "testlog", wf);
   l.truncate(0);
   REQUIRE(l.get_last_idx() == 0);
   l.write_entry(e1.data(), e1.size());

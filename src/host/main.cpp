@@ -545,7 +545,8 @@ int main(int argc, char** argv)
   LOG_INFO_FMT("Created new node");
 
   // ledger
-  asynchost::Ledger ledger(ledger_file, writer_factory);
+  asynchost::Ledger ledger(
+    consensus == ConsensusType::RAFT, ledger_file, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   asynchost::NodeConnectionsTickingReconnect node(
