@@ -1,0 +1,335 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Accepting Recovery and Submitting Shares &mdash; CCF  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script src="https://unpkg.com/mermaid@8.4.8/dist/mermaid.min.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Common Governance Operations" href="common_member_operations.html" />
+    <link rel="prev" title="Opening a Network" href="open_network.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> CCF
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../concepts.html">CCF Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/index.html">Start Here</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Member Governance</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="open_network.html">Opening a Network</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Accepting Recovery and Submitting Shares</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#accepting-recovery">Accepting Recovery</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#submitting-recovery-shares">Submitting Recovery Shares</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#summary-diagram">Summary Diagram</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developers/index.html">Writing CCF Applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../operators/index.html">Operating a Network</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/index.html">Using CCF Applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../design/index.html">Design</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CCF</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="index.html">Member Governance</a> &raquo;</li>
+        
+      <li>Accepting Recovery and Submitting Shares</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/Microsoft/CCF/blob/master/sphinx/source/members/accept_recovery.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="accepting-recovery-and-submitting-shares">
+<h1>Accepting Recovery and Submitting Shares<a class="headerlink" href="#accepting-recovery-and-submitting-shares" title="Permalink to this headline">¶</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Before members can initiate the end of the recovery procedure, operators should have started a new network and recovered all public transactions. See <a class="reference internal" href="../operators/recovery.html#establishing-a-recovered-public-network"><span class="std std-ref">details for public recovery operator procedure</span></a>.</p>
+</div>
+<div class="section" id="accepting-recovery">
+<h2>Accepting Recovery<a class="headerlink" href="#accepting-recovery" title="Permalink to this headline">¶</a></h2>
+<p>Once the public recovered network has been established by operators, members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.</p>
+<p>A member proposes to recover the network and other members can vote on the proposal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cat accept_recovery.json
+<span class="o">{</span>
+    <span class="s2">&quot;script&quot;</span>: <span class="o">{</span>
+        <span class="s2">&quot;text&quot;</span>: <span class="s2">&quot;tables = ...; return Calls:call(\&quot;accept_recovery\&quot;)&quot;</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+
+$ ./scurl.sh https://&lt;ccf-node-address&gt;/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H <span class="s2">&quot;content-type: application/json&quot;</span>
+<span class="o">{</span>
+    <span class="s2">&quot;completed&quot;</span>: false,
+    <span class="s2">&quot;id&quot;</span>: <span class="m">1</span>
+<span class="o">}</span>
+
+$ ./scurl.sh https://&lt;ccf-node-address&gt;/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H <span class="s2">&quot;content-type: application/json&quot;</span>
+<span class="nb">false</span>
+
+$ ./scurl.sh https://&lt;ccf-node-address&gt;/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H <span class="s2">&quot;content-type: application/json&quot;</span>
+<span class="nb">true</span>
+</pre></div>
+</div>
+<p>Once the proposal to recover the network has passed under the rules of the <a class="reference internal" href="../glossary.html#term-Constitution"><span class="xref std std-term">constitution</span></a>, the recovered service is ready for members to submit their recovery shares.</p>
+</div>
+<div class="section" id="submitting-recovery-shares">
+<h2>Submitting Recovery Shares<a class="headerlink" href="#submitting-recovery-shares" title="Permalink to this headline">¶</a></h2>
+<p>To restore private transactions and complete the recovery procedure, members shoud submit their recovery shares. The number of members required to submit their shares is set by the <code class="docutils literal notranslate"><span class="pre">recovery_threshold</span></code> CCF configuration parameter and <a class="reference internal" href="common_member_operations.html#updating-recovery-threshold"><span class="std std-ref">can be updated by the consortium at any time</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.</p>
+</div>
+<p>First, members should retrieve their encrypted recovery shares via the <code class="docutils literal notranslate"><span class="pre">getEncryptedRecoveryShare</span></code> RPC <a class="footnote-reference brackets" href="#recovery-share" id="id1">1</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ curl https://&lt;ccf-node-address&gt;/members/getEncryptedRecoveryShare -X GET --cacert network_cert --key member1_privk --cert member1_cert -H <span class="s2">&quot;content-type: application/json&quot;</span>
+</pre></div>
+</div>
+<p>Then, members should decrypt their shares using their private encryption key and the <cite>previous</cite> network public encryption key (output by the first node of the now-defunct service via the <code class="docutils literal notranslate"><span class="pre">network-enc-pubk-file</span></code> <a class="reference internal" href="../operators/start_network.html#starting-the-first-node"><span class="std std-ref">command line option</span></a>) using <a class="reference external" href="https://nacl.cr.yp.to/box.html">NaCl’s public-key authenticated encryption</a>.</p>
+<p>Finally, members should submit their decrypted share to CCF via the <code class="docutils literal notranslate"><span class="pre">submitRecoveryShare</span></code> RPC:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cat submit_recovery_share.json
+<span class="o">{</span><span class="s2">&quot;recovery_share&quot;</span>: <span class="o">[</span>&lt;recovery_share_bytes&gt;<span class="o">]}</span>
+
+$ curl https://&lt;ccf-node-address&gt;/members/submitRecoveryShare -X POST --data-binary @submit_recovery_share.json --cacert network_cert --key member1_privk --cert member1_cert -H <span class="s2">&quot;content-type: application/json&quot;</span>
+<span class="nb">false</span>
+
+$ curl https://&lt;ccf-node-address&gt;/members/submitRecoveryShare -X POST --data-binary @submit_recovery_share.json --cacert network_cert --key member2_privk --cert member2_cert -H <span class="s2">&quot;content-type: application/json&quot;</span>
+<span class="nb">true</span>
+</pre></div>
+</div>
+<p>When the recovery threshold is reached, the <code class="docutils literal notranslate"><span class="pre">submitRecoveryShare</span></code> RPC returns <code class="docutils literal notranslate"><span class="pre">true</span></code>. At this point, the private recovery procedure is started and the private ledger is being recovered.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>While all nodes are recovering the private ledger, no new transaction can be executed by the network.</p>
+</div>
+<p>Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Recovery shares are updated every time a new member is added or retired and when the ledger is rekeyed. It also possible for members to update the recovery shares via the <code class="docutils literal notranslate"><span class="pre">update_recovery_shares</span></code> proposal.</p>
+</div>
+</div>
+<div class="section" id="summary-diagram">
+<h2>Summary Diagram<a class="headerlink" href="#summary-diagram" title="Permalink to this headline">¶</a></h2>
+<script>mermaid.initialize({startOnLoad:true});</script><div class="mermaid">
+            sequenceDiagram
+    participant Member 0
+    participant Member 1
+    participant Users
+    participant Node 2
+    participant Node 3
+
+    Note over Node 2, Node 3: Operators have restarted a public-only service
+
+    Member 0-&gt;&gt;+Node 2: Propose accept_recovery
+    Node 2--&gt;&gt;Member 0: Proposal ID
+    Member 1-&gt;&gt;+Node 2: Vote for Proposal ID
+    Node 2--&gt;&gt;Member 1: State: ACCEPTED
+    Note over Node 2, Node 3: accept_recovery proposal completes. Service is ready to accept recovery shares.
+
+    Member 0-&gt;&gt;+Node 2: getEncryptedRecoveryShare
+    Node 2--&gt;&gt;Member 0: Encrypted recovery share for Member 0
+    Note over Member 0: Decrypts recovery share
+    Member 0-&gt;&gt;+Node 2: submitRecoveryShare: {&quot;recovery_share&quot;: ...}
+    Node 2--&gt;&gt;Member 0: False
+
+    Member 1-&gt;&gt;+Node 2: getEncryptedRecoveryShare
+    Node 2--&gt;&gt;Member 1: Encrypted recovery share for Member 1
+    Note over Member 1: Decrypts recovery share
+    Member 1-&gt;&gt;+Node 2: submitRecoveryShare: {&quot;recovery_share&quot;: ...}
+    Node 2--&gt;&gt;Member 1: True
+
+    Note over Node 2, Node 3: Reading Private Ledger...
+
+    Note over Node 2: Recovery procedure complete
+    Note over Node 3: Recovery procedure complete
+        </div><p class="rubric">Footnotes</p>
+<dl class="footnote brackets">
+<dt class="label" id="recovery-share"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>Recovery shares are encrypted with the respective member public key and stored in CCF. As such, a recovery share can only be retrieved and used by the member who owns it.</p>
+</dd>
+</dl>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="common_member_operations.html" class="btn btn-neutral float-right" title="Common Governance Operations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="open_network.html" class="btn btn-neutral float-left" title="Opening a Network" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Microsoft Research
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
